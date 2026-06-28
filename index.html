@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <meta
+    name="description"
+    content="A lightweight resolution console for Mothership Wardens."
+  >
+
+  <title>Warden Resolution Console</title>
+
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header__identity">
+        <p class="eyebrow">Mothership Homebrew Tools</p>
+
+        <h1>Warden Resolution Console</h1>
+
+        <p class="app-header__subtitle">
+          Fast rulings, layered damage, visible calculations, temporary session state.
+        </p>
+      </div>
+
+      <div class="app-header__actions">
+        <button
+          id="mobile-nav-toggle"
+          class="button button--secondary mobile-only"
+          type="button"
+          aria-controls="tool-navigation"
+          aria-expanded="false"
+        >
+          Tools
+        </button>
+
+        <button
+          id="session-tray-toggle"
+          class="button button--secondary"
+          type="button"
+          aria-controls="session-tray"
+          aria-expanded="true"
+        >
+          Session
+        </button>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      <aside
+        id="tool-navigation"
+        class="tool-navigation"
+        aria-label="Console tools"
+      >
+        <div class="tool-navigation__header">
+          <h2>Tools</h2>
+
+          <button
+            id="mobile-nav-close"
+            class="icon-button mobile-only"
+            type="button"
+            aria-label="Close tool navigation"
+          >
+            ×
+          </button>
+        </div>
+
+        <nav id="tool-list" class="tool-list">
+          <!-- Populated by app.js -->
+        </nav>
+      </aside>
+
+      <main class="workspace">
+        <section
+          id="active-tool"
+          class="workspace__tool"
+          aria-live="polite"
+        >
+          <!-- Active tool rendered by app.js -->
+        </section>
+
+        <section
+          id="active-result"
+          class="workspace__result"
+          aria-live="polite"
+        >
+          <!-- Latest result rendered by app.js -->
+        </section>
+</main>
+
+      <aside
+        id="session-tray"
+        class="session-tray"
+        aria-label="Session tray"
+      >
+        <div class="session-tray__header">
+          <div>
+            <p class="eyebrow">Temporary State</p>
+            <h2>Session Tray</h2>
+          </div>
+
+          <button
+            id="session-tray-collapse"
+            class="icon-button"
+            type="button"
+            aria-label="Collapse session tray"
+          >
+            ×
+          </button>
+        </div>
+
+        <section class="session-panel">
+          <div class="session-panel__heading">
+            <h3>Quick Entities</h3>
+
+            <button
+              class="text-button"
+              type="button"
+              data-tool-id="quick_entities"
+            >
+              Open
+            </button>
+          </div>
+
+          <div
+            id="quick-entity-summary"
+            class="empty-state empty-state--compact"
+          >
+            No Quick Entities yet.
+          </div>
+        </section>
+
+        <section class="session-panel">
+          <div class="session-panel__heading">
+            <h3>Recent Results</h3>
+
+            <button
+              id="clear-results"
+              class="text-button"
+              type="button"
+            >
+              Clear
+            </button>
+          </div>
+
+          <div id="recent-results" class="recent-results">
+            <div class="empty-state empty-state--compact">
+              No results yet.
+            </div>
+          </div>
+        </section>
+
+        <section class="session-panel">
+          <div class="session-panel__heading">
+            <h3>Active Hazards</h3>
+
+            <button
+              class="text-button"
+              type="button"
+              data-tool-id="hazards"
+            >
+              Open
+            </button>
+          </div>
+
+          <div
+            id="hazard-summary"
+            class="empty-state empty-state--compact"
+          >
+            No active hazards.
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <div
+      id="mobile-overlay"
+      class="mobile-overlay"
+      hidden
+    ></div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

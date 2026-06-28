@@ -1,0 +1,40 @@
+export const CRYO_COMPLICATIONS = Object.freeze([
+  {
+    roll: 1,
+    id: "flash_freeze",
+    label: "Flash Freeze",
+    text: "-5 Speed until treated or warmed.",
+    modifiers: { speed: -5 },
+    clearedBy: ["treated", "warmed"],
+  },
+  {
+    roll: 2,
+    id: "numbed_limb",
+    label: "Numbed Limb",
+    text: "Suffer (-) on the next Strength or Speed check using that limb.",
+    addConditions: ["numbed_limb"],
+  },
+  {
+    roll: 3,
+    id: "thermal_shock",
+    label: "Thermal Shock",
+    text: "+1 Stress and lose your next reaction.",
+    stressDelta: 1,
+    loseNextReaction: true,
+  },
+  {
+    roll: 4,
+    id: "brittle_gear",
+    label: "Brittle Gear",
+    text: "One exposed item, weapon, armor plate, or tool becomes fragile until warmed or repaired.",
+    addConditions: ["brittle"],
+  },
+  {
+    roll: 5,
+    id: "frozen_joint",
+    label: "Frozen Joint",
+    text: "Cannot sprint, climb, or dodge cleanly for one action cycle.",
+    restrictions: ["sprint", "climb", "clean_dodge"],
+    duration: "next_action_cycle",
+  },
+]);

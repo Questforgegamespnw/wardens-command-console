@@ -1,0 +1,32 @@
+export const CONDITIONS = Object.freeze({
+  bleeding: {
+    id: "bleeding",
+    label: "Bleeding",
+    numeric: true,
+    stacks: true,
+    clearedBy: ["stabilization", "treatment"],
+  },
+  burning: {
+    id: "burning",
+    label: "Burning",
+    cycleDamage: "1d5",
+    clearedBy: ["extinguish"],
+  },
+  smoldering: {
+    id: "smoldering",
+    label: "Smoldering",
+    stressPerCycle: 1,
+    clearedBy: ["extinguish"],
+  },
+  unconscious: { id: "unconscious", label: "Unconscious", numericCountdown: true },
+  dying: { id: "dying", label: "Dying", requiresImmediateMedicalIntervention: true },
+  prone: { id: "prone", label: "Prone" },
+  stunned: { id: "stunned", label: "Stunned" },
+  immobile: { id: "immobile", label: "Immobile" },
+  brittle: { id: "brittle", label: "Brittle", clearedBy: ["warmed", "repaired"] },
+  numbed_limb: { id: "numbed_limb", label: "Numbed Limb", clearedBy: ["warmed", "treated"] },
+  seal_warning: { id: "seal_warning", label: "Seal Warning", uses: 1 },
+  o2_leak: { id: "o2_leak", label: "O2 Leak", oxygenLossPerCycle: 1 },
+  internal_bleeding: { id: "internal_bleeding", label: "Internal Bleeding", numeric: true, stacks: true },
+  embedded_object: { id: "embedded_object", label: "Embedded Object" },
+});

@@ -1,0 +1,138 @@
+@media (max-width: 1180px) {
+  :root {
+    --nav-width: 210px;
+    --tray-width: 290px;
+  }
+
+  .workspace {
+    padding: var(--space-6);
+  }
+
+  .result-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .mobile-only {
+    display: inline-flex;
+  }
+
+  .app-layout {
+    display: block;
+  }
+
+  .workspace {
+    max-width: none;
+    padding: var(--space-5);
+  }
+
+  .tool-navigation,
+  .session-tray {
+    position: fixed;
+    z-index: 90;
+    top: 0;
+    bottom: 0;
+
+    width: min(86vw, 340px);
+    height: 100vh;
+
+    box-shadow: var(--shadow-panel);
+
+    transition: transform 180ms ease;
+  }
+
+  .tool-navigation {
+    left: 0;
+    transform: translateX(-105%);
+  }
+
+  .tool-navigation.is-open {
+    transform: translateX(0);
+  }
+
+  .session-tray {
+    right: 0;
+    transform: translateX(105%);
+  }
+
+  .session-tray.is-open {
+    transform: translateX(0);
+  }
+
+  body.session-tray-collapsed .session-tray {
+    display: block;
+  }
+
+  .app-header {
+    min-height: 82px;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .app-layout {
+    min-height: calc(100vh - 82px);
+  }
+
+  .app-header__subtitle {
+    display: none;
+  }
+
+  .form-grid,
+  .form-grid--three {
+    grid-template-columns: 1fr;
+  }
+
+  .result-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .app-header {
+    align-items: flex-start;
+  }
+
+  .app-header h1 {
+    font-size: 1.05rem;
+  }
+
+  .eyebrow {
+    font-size: 0.6rem;
+  }
+
+  .workspace {
+    padding: var(--space-3);
+  }
+
+  .panel__header,
+  .panel__body,
+  .result-card__header,
+  .result-card__body {
+    padding: var(--space-4);
+  }
+
+  .panel__header,
+  .result-card__header {
+    flex-direction: column;
+  }
+
+  .segmented-control--three {
+    grid-template-columns: 1fr;
+  }
+
+  .modifier-row {
+    grid-template-columns: minmax(0, 1fr) 84px 38px;
+  }
+
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .form-actions .button {
+    width: 100%;
+  }
+}

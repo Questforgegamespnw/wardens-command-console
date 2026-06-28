@@ -1,0 +1,18 @@
+export const ARMOR_SYSTEMS = Object.freeze({
+  sealed: { id: "sealed", label: "Sealed", dependencies: ["seal"], lostWhenBroken: true },
+  oxygen_supply: { id: "oxygen_supply", label: "Oxygen Supply", dependencies: ["seal", "life_support"], lostWhenBroken: true },
+  vacuum_protection: { id: "vacuum_protection", label: "Vacuum Protection", dependencies: ["seal", "pressure"], lostWhenBroken: true },
+  chemical_filtration: { id: "chemical_filtration", label: "Chemical Filtration", dependencies: ["seal", "life_support"], lostWhenBroken: true },
+  biohazard_protection: { id: "biohazard_protection", label: "Biohazard Protection", dependencies: ["seal", "life_support"], lostWhenBroken: true },
+  temperature_control: { id: "temperature_control", label: "Temperature Control", dependencies: ["life_support", "electronics"], lostWhenBroken: true },
+  radiation_protection: { id: "radiation_protection", label: "Radiation Protection", dependencies: ["hazard_layer"], lostWhenBroken: true },
+  trauma_dampening: { id: "trauma_dampening", label: "Trauma Dampening", dependencies: ["structural", "shock_absorption"], lostWhenBroken: true },
+  auto_patch: { id: "auto_patch", label: "AutoPatch", dependencies: ["seal", "medical", "electronics"], lostWhenBroken: true },
+  auto_injector: { id: "auto_injector", label: "AutoInjector", dependencies: ["medical", "electronics"], lostWhenBroken: true },
+  medical_monitoring: { id: "medical_monitoring", label: "Medical Monitoring", dependencies: ["medical", "electronics"], lostWhenBroken: true },
+  hud: { id: "hud", label: "HUD", dependencies: ["electronics"], lostWhenBroken: true },
+  tac_link: { id: "tac_link", label: "Tac-Link", dependencies: ["electronics"], lostWhenBroken: true },
+  smart_systems: { id: "smart_systems", label: "Smart Systems", dependencies: ["electronics"], lostWhenBroken: true },
+  strength_assistance: { id: "strength_assistance", label: "Strength Assistance", dependencies: ["structural", "power"], lostWhenBroken: true },
+  mobility_assistance: { id: "mobility_assistance", label: "Mobility Assistance", dependencies: ["mobility", "power"], lostWhenBroken: true },
+});

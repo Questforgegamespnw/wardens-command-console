@@ -1,0 +1,68 @@
+.empty-state {
+  padding: var(--space-8);
+
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-medium);
+
+  color: var(--color-text-faint);
+  background: rgba(255, 255, 255, 0.015);
+
+  text-align: center;
+}
+
+.empty-state--compact {
+  padding: var(--space-4);
+  font-size: 0.8rem;
+}
+
+.placeholder-tool {
+  padding: var(--space-10);
+
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-large);
+
+  background: rgba(17, 21, 23, 0.85);
+
+  text-align: center;
+}
+
+.placeholder-tool h2 {
+  margin-bottom: var(--space-2);
+}
+
+.placeholder-tool p {
+  max-width: 50ch;
+  margin-right: auto;
+  margin-bottom: 0;
+  margin-left: auto;
+
+  color: var(--color-text-muted);
+}
+
+.alert {
+  padding: var(--space-4);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+
+  color: var(--color-text-muted);
+  background: var(--color-surface-raised);
+}
+
+.alert--warning {
+  border-color: rgba(226, 189, 105, 0.45);
+  color: var(--color-warning);
+  background: rgba(226, 189, 105, 0.09);
+}
+
+.mobile-overlay {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.mobile-only {
+  display: none;
+}

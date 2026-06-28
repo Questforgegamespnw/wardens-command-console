@@ -1,0 +1,244 @@
+/* ==========================================================================
+   Quick Entities
+   ========================================================================== */
+
+.quick-entity-list,
+.quick-entity-board {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quick-entity-item,
+.quick-entity-board-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-medium);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.025),
+      rgba(255, 255, 255, 0)
+    ),
+    var(--surface-raised);
+  overflow: hidden;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.quick-entity-item:hover,
+.quick-entity-board-card:hover {
+  border-color: var(--border-strong);
+}
+
+.quick-entity-item.is-selected,
+.quick-entity-board-card.is-selected {
+  border-color: var(--accent);
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    0 0 0 1px rgba(220, 155, 55, 0.12);
+}
+
+.quick-entity-item__main,
+.quick-entity-board-card__main {
+  display: grid;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-entity-item__main {
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+}
+
+.quick-entity-board-card__main {
+  gap: 0.25rem;
+  padding: 0.75rem;
+}
+
+.quick-entity-item__main:hover,
+.quick-entity-board-card__main:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.quick-entity-item__main:focus-visible,
+.quick-entity-board-card__main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.quick-entity-item__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.quick-entity-item__heading strong,
+.quick-entity-board-card__main strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.quick-entity-item__summary,
+.quick-entity-board-card__main span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.quick-entity-item__actions,
+.quick-entity-board-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  border-top: 1px solid var(--border-subtle);
+  padding: 0.45rem 0.65rem;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.quick-entity-item__actions .text-button,
+.quick-entity-board-card__actions .text-button {
+  padding: 0.3rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.quick-entity-board-card__actions {
+  justify-content: space-between;
+}
+
+/* ==========================================================================
+   Entity Editor
+   ========================================================================== */
+
+#quick-entity-form {
+  display: grid;
+  gap: 1rem;
+}
+
+#quick-entity-form .form-section {
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+#quick-entity-form .form-section:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+#quick-entity-form .form-grid--three {
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+}
+
+#quick-entity-form input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+#quick-entity-form .result-errors {
+  margin-top: 0.75rem;
+}
+
+/* ==========================================================================
+   Quick Entity Session Tray
+   ========================================================================== */
+
+#quick-entity-summary {
+  min-width: 0;
+}
+
+.quick-entity-board {
+  margin-top: 0.5rem;
+}
+
+.quick-entity-board-card {
+  border-radius: var(--radius-small);
+}
+
+.quick-entity-board-card__main {
+  font-size: 0.82rem;
+}
+
+.quick-entity-board-card.is-selected
+  .quick-entity-board-card__main strong {
+  color: var(--accent);
+}
+
+/* ==========================================================================
+   Compact Entity State Indicators
+   ========================================================================== */
+
+.quick-entity-item__summary,
+.quick-entity-board-card__main span {
+  font-variant-numeric: tabular-nums;
+}
+
+.quick-entity-item__summary::selection,
+.quick-entity-board-card__main span::selection {
+  background: var(--accent);
+  color: var(--surface-base);
+}
+
+/* ==========================================================================
+   Empty State
+   ========================================================================== */
+
+.quick-entity-list .empty-state,
+.quick-entity-board .empty-state {
+  min-height: 8rem;
+}
+
+.quick-entity-list .empty-state p {
+  margin-bottom: 0.75rem;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 1100px) {
+  #quick-entity-form .form-grid--three {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  #quick-entity-form .form-grid--three {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-entity-item__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .quick-entity-item__actions {
+    justify-content: space-between;
+  }
+}
+
+
+
+.quick-entity-group-picker {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  align-items: end;
+}
+
+@media (max-width: 700px) {
+  .quick-entity-group-picker {
+    grid-template-columns: 1fr;
+  }
+}

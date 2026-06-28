@@ -1,0 +1,27 @@
+/* ==========================================================================
+   Personnel TAC
+   ========================================================================== */
+
+#tac-form {
+  display: grid;
+  gap: var(--space-6);
+}
+
+#tac-form input[type="checkbox"] {
+  accent-color: var(--color-accent);
+}
+
+#tac-preferred-category-field[hidden],
+#tac-forced-roll-field[hidden] {
+  display: none;
+}
+
+#tac-form .form-help {
+  max-width: 62ch;
+}
+
+@media (max-width: 620px) {
+  #tac-form .segmented-control {
+    grid-template-columns: 1fr;
+  }
+}

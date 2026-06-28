@@ -1,0 +1,86 @@
+.damage-tool .form-section__heading {
+  align-items: start;
+}
+
+.damage-breakdown {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.damage-breakdown h3 {
+  margin: 0;
+}
+
+.damage-dice-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.damage-die {
+  display: inline-grid;
+  min-width: 3.25rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  background: var(--color-surface-raised);
+}
+
+.damage-die span {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.damage-die small {
+  color: var(--color-text-muted);
+}
+
+.damage-layers {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.damage-layer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.damage-layer > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.damage-layer span,
+.damage-layer small {
+  color: var(--color-text-muted);
+}
+
+.damage-layer.is-breached {
+  border-inline-start: 0.3rem solid var(--color-warning);
+}
+
+.damage-layer.is-blocked {
+  border-inline-start: 0.3rem solid var(--color-success);
+}
+
+.damage-result .alert + .damage-breakdown,
+.damage-result .damage-breakdown + .damage-breakdown {
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .damage-layer {
+    grid-template-columns: 1fr;
+  }
+}
