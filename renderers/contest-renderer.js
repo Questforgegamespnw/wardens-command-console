@@ -5,7 +5,13 @@ import {
   formatPercentileDisplay
 } from "../modules/ui-helpers.js";
 
-export function renderContestForm() {
+import {
+  renderSkillPresetOptions
+} from "./skill-preset-renderer.js";
+
+export function renderContestForm({
+  skills = []
+} = {}) {
   return `
     <section class="panel">
       <header class="panel__header">
@@ -46,8 +52,8 @@ export function renderContestForm() {
 
           <section class="form-section">
             <div class="form-grid">
-              ${renderContestSideForm("a", "Side A")}
-              ${renderContestSideForm("b", "Side B")}
+              ${renderContestSideForm("a", "Side A", skills)}
+              ${renderContestSideForm("b", "Side B", skills)}
             </div>
           </section>
 
@@ -125,7 +131,8 @@ export function renderContestForm() {
 
 export function renderContestSideForm(
   sideId,
-  fallbackLabel
+  fallbackLabel,
+  skills = []
 ) {
   const sideName = sideId.toUpperCase();
 
@@ -191,6 +198,27 @@ export function renderContestSideForm(
                 step="1"
                 required
               >
+            </div>
+
+            <div class="form-field form-field--full">
+              <label
+                class="form-label"
+                for="contest-${sideId}-skill-preset"
+              >
+                Skill
+              </label>
+
+              <select
+                id="contest-${sideId}-skill-preset"
+                class="select"
+              >
+                ${renderSkillPresetOptions(skills)}
+              </select>
+
+              <p class="form-help">
+                Selecting a skill fills its canonical bonus.
+                Use Custom / Manual for campaign-specific skills.
+              </p>
             </div>
 
             <div class="form-field">

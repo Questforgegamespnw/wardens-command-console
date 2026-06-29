@@ -80,21 +80,22 @@
 
       <main class="workspace">
         <section
+          id="active-result"
+          class="workspace__result"
+          aria-live="polite"
+          aria-label="Current result"
+        >
+          <!-- Latest result rendered by app.js -->
+        </section>
+
+        <section
           id="active-tool"
           class="workspace__tool"
           aria-live="polite"
         >
           <!-- Active tool rendered by app.js -->
         </section>
-
-        <section
-          id="active-result"
-          class="workspace__result"
-          aria-live="polite"
-        >
-          <!-- Latest result rendered by app.js -->
-        </section>
-</main>
+      </main>
 
       <aside
         id="session-tray"

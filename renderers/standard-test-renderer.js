@@ -9,7 +9,13 @@ import {
   renderResultStat
 } from "./shared-renderers.js";
 
-export function renderStandardTestForm() {
+import {
+  renderSkillPresetOptions
+} from "./skill-preset-renderer.js";
+
+export function renderStandardTestForm({
+  skills = []
+} = {}) {
   return `
     <section class="panel">
       <header class="panel__header">
@@ -118,6 +124,31 @@ export function renderStandardTestForm() {
                   placeholder="35"
                   required
                 >
+              </div>
+
+              <div
+                id="skill-preset-field"
+                class="form-field form-field--full"
+              >
+                <label
+                  class="form-label"
+                  for="skill-preset"
+                >
+                  Skill
+                </label>
+
+                <select
+                  id="skill-preset"
+                  class="select"
+                  name="skillPreset"
+                >
+                  ${renderSkillPresetOptions(skills)}
+                </select>
+
+                <p class="form-help">
+                  Selecting a skill fills its canonical bonus.
+                  Use Custom / Manual for campaign-specific skills.
+                </p>
               </div>
 
               <div

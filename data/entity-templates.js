@@ -22,6 +22,10 @@ import {
   ENTITY_GROUP_TEMPLATES
 } from "./entity-templates/groups.js";
 
+import {
+  VEHICLE_ENTITY_TEMPLATES
+} from "./entity-templates/vehicles.js";
+
 const LEGACY_TEMPLATES = Object.freeze([
   template({
     id: "unarmored_human",
@@ -227,8 +231,11 @@ const LEGACY_TEMPLATES = Object.freeze([
 const ROLE_TEMPLATES = Object.freeze(
   Object.values(
     ENTITY_ROLE_TEMPLATES,
-  ).map((role) =>
-    template({
+  ).map((role) => {
+    const grouping =
+      getPersonnelTemplateGrouping(role);
+
+    return template({
       id: role.id,
       label: role.label,
       type: "enemy",
@@ -236,6 +243,11 @@ const ROLE_TEMPLATES = Object.freeze(
       baseBodyId: role.baseBodyId,
       armorPackageId:
         role.armorPackageId,
+      category: "personnel",
+      categoryLabel: "Personnel",
+      group: grouping.group,
+      groupLabel: grouping.groupLabel,
+      sortOrder: grouping.sortOrder,
       tags: role.tags,
       profile: {
         role: role.role,
@@ -246,14 +258,22 @@ const ROLE_TEMPLATES = Object.freeze(
           role.secondaryWeapon,
         skills: role.skills,
       },
-    }),
-  ),
+    });
+  }),
 );
+
+const GROUPED_LEGACY_TEMPLATES =
+  Object.freeze(
+    LEGACY_TEMPLATES.map(
+      addLegacyTemplateGrouping,
+    ),
+  );
 
 export const ENTITY_TEMPLATES =
   Object.freeze([
-    ...LEGACY_TEMPLATES,
+    ...GROUPED_LEGACY_TEMPLATES,
     ...ROLE_TEMPLATES,
+    ...VEHICLE_ENTITY_TEMPLATES,
   ]);
 
 export {
@@ -261,6 +281,7 @@ export {
   ENTITY_ARMOR_PACKAGES,
   ENTITY_ROLE_TEMPLATES,
   ENTITY_GROUP_TEMPLATES,
+  VEHICLE_ENTITY_TEMPLATES,
 };
 
 export function getEntityTemplate(
@@ -323,6 +344,11 @@ export function cloneTemplateDefaults(
       ?? {},
     ),
 
+    vehicle: cloneValue(
+      template.defaults.vehicle
+      ?? {},
+    ),
+
     profile: cloneValue(
       template.profile
       ?? {},
@@ -341,6 +367,11 @@ function template({
   description,
   baseBodyId,
   armorPackageId,
+  category = "personnel",
+  categoryLabel = "Personnel",
+  group = "other_personnel",
+  groupLabel = "Other Personnel",
+  sortOrder = 100,
   tags = [],
   profile = {},
 }) {
@@ -357,6 +388,12 @@ function template({
     label,
     type,
     description,
+
+    category,
+    categoryLabel,
+    group,
+    groupLabel,
+    sortOrder,
 
     baseBodyId,
     armorPackageId,
@@ -380,6 +417,135 @@ function template({
     ]),
 
     status: "active",
+  });
+}
+
+function getPersonnelTemplateGrouping(role) {
+  const id = role.id ?? "";
+  const tags = new Set(role.tags ?? []);
+
+  if (
+    id.startsWith("marine_")
+    || id.startsWith("orion_")
+  ) {
+    return {
+      group: "marines",
+      groupLabel: "Marines and Orion Teams",
+      sortOrder: 20,
+    };
+  }
+
+  if (id.startsWith("reclamation_")) {
+    return {
+      group: "reclamation",
+      groupLabel: "Reclamation Teams",
+      sortOrder: 40,
+    };
+  }
+
+  if (
+    tags.has("walker_pilot")
+    || tags.has("fire_control")
+    || tags.has("walker_section")
+    || tags.has("exosuit")
+  ) {
+    return {
+      group: "walker_crew",
+      groupLabel: "Walker Crew and Operators",
+      sortOrder: 50,
+    };
+  }
+
+  if (
+    tags.has("corporate")
+    || id.startsWith("corporate_")
+  ) {
+    return {
+      group: "corporate_specialists",
+      groupLabel: "Corporate Specialists",
+      sortOrder: 30,
+    };
+  }
+
+  return {
+    group: "other_personnel",
+    groupLabel: "Other Personnel",
+    sortOrder: 90,
+  };
+}
+
+function addLegacyTemplateGrouping(template) {
+  const groupingById = {
+    unarmored_human: {
+      category: "personnel",
+      categoryLabel: "Personnel",
+      group: "baseline",
+      groupLabel: "Baseline",
+      sortOrder: 10,
+    },
+
+    armored_trooper: {
+      category: "personnel",
+      categoryLabel: "Personnel",
+      group: "baseline",
+      groupLabel: "Baseline",
+      sortOrder: 20,
+    },
+
+    juggernaut: {
+      category: "personnel",
+      categoryLabel: "Personnel",
+      group: "baseline",
+      groupLabel: "Baseline",
+      sortOrder: 30,
+    },
+
+    creature: {
+      category: "other",
+      categoryLabel: "Other",
+      group: "creatures",
+      groupLabel: "Creatures",
+      sortOrder: 10,
+    },
+
+    vehicle: {
+      category: "vehicle",
+      categoryLabel: "Vehicles",
+      group: "generic_vehicles",
+      groupLabel: "Generic Vehicles",
+      sortOrder: 5,
+    },
+
+    object: {
+      category: "other",
+      categoryLabel: "Other",
+      group: "objects",
+      groupLabel: "Objects",
+      sortOrder: 20,
+    },
+
+    custom: {
+      category: "other",
+      categoryLabel: "Other",
+      group: "custom",
+      groupLabel: "Custom",
+      sortOrder: 30,
+    },
+  };
+
+  const grouping =
+    groupingById[template.id]
+    ?? {
+      category: "other",
+      categoryLabel: "Other",
+      group: "other",
+      groupLabel: "Other",
+      sortOrder: 100,
+    };
+
+  return Object.freeze({
+    ...template,
+    ...grouping,
   });
 }
 

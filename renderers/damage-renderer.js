@@ -20,6 +20,7 @@ const WOUND_OPTIONS = Object.freeze([
 export function renderDamageForm({
   entities = [],
   selectedEntityId = null,
+  weaponPresets = [],
 } = {}) {
   return `
     <section class="panel damage-tool">
@@ -44,6 +45,61 @@ export function renderDamageForm({
             </div>
 
             <div class="form-grid">
+              <div class="form-field form-field--full">
+                <label class="form-label" for="damage-weapon-preset">
+                  Weapon Preset
+                </label>
+
+                <select
+                  id="damage-weapon-preset"
+                  class="select"
+                >
+                  <option value="">
+                    Manual / No Preset
+                  </option>
+
+                  ${renderWeaponPresetOptions(
+                    weaponPresets
+                  )}
+                </select>
+
+                <p class="form-help">
+                  Presets fill the existing controls. Every value
+                  remains editable before resolution.
+                </p>
+              </div>
+
+              <div
+                class="form-field form-field--full"
+                id="damage-weapon-profile-field"
+                hidden
+              >
+                <label class="form-label" for="damage-weapon-profile">
+                  Weapon Profile
+                </label>
+
+                <select
+                  id="damage-weapon-profile"
+                  class="select"
+                  disabled
+                >
+                  <option value="">
+                    Choose a weapon first
+                  </option>
+                </select>
+              </div>
+
+              <div
+                class="form-field form-field--full"
+                id="damage-preset-guidance"
+                hidden
+              >
+                <div
+                  class="alert"
+                  id="damage-preset-notes"
+                ></div>
+              </div>
+
               <div class="form-field form-field--full">
                 <label class="form-label" for="damage-mode">
                   Damage Mode
@@ -478,6 +534,54 @@ export function renderDamageForm({
       </div>
     </section>
   `;
+}
+
+function renderWeaponPresetOptions(
+  presets
+) {
+  const groups = new Map();
+
+  for (const preset of presets) {
+    const label =
+      preset.categoryLabel
+      ?? "Other Weapons";
+
+    if (!groups.has(label)) {
+      groups.set(label, []);
+    }
+
+    groups.get(label).push(preset);
+  }
+
+  return [...groups.entries()]
+    .map(
+      ([groupLabel, entries]) => `
+        <optgroup
+          label="${escapeHtml(groupLabel)}"
+        >
+          ${entries
+            .sort(
+              (left, right) =>
+                Number(left.sortOrder ?? 100)
+                - Number(right.sortOrder ?? 100)
+                || left.label.localeCompare(
+                  right.label
+                )
+            )
+            .map(
+              (preset) => `
+                <option
+                  value="${escapeHtml(preset.id)}"
+                >
+                  ${escapeHtml(preset.label)}
+                </option>
+              `
+            )
+            .join("")}
+        </optgroup>
+      `
+    )
+    .join("");
 }
 
 export function renderDamageResult(result) {

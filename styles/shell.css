@@ -169,7 +169,13 @@
 }
 
 .workspace__result {
-  margin-top: var(--space-6);
+  margin-bottom: var(--space-6);
+  scroll-margin-top: calc(92px + var(--space-4));
+}
+
+.workspace__result:empty {
+  display: none;
+  margin-bottom: 0;
 }
 
 .panel {

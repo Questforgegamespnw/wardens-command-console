@@ -405,3 +405,309 @@ Not locked for alpha:
 - Automated chained damage/TAC/Wound execution
 
 These require separate resolver families.
+
+---
+
+## 20. Vehicle TAC decisions 
+
+### Categories
+[
+  "mobility",
+  "weapons",
+  "sensors_fire_control",
+  "crew_cockpit",
+  "power_systems",
+  "armor_structure"
+]
+
+- Each category can use whatever die size best fits its actual number of entries. We do not need to force every table into d10 if a category later grows or contracts.
+
+Severity
+[
+  "light",
+  "moderate",
+  "severe",
+  "catastrophic"
+]
+
+- Severity and subsystem condition should remain separate concepts:
+
+- Severity describes this TAC event.
+- Condition describes the subsystem after accumulated damage.
+- Subsystem condition
+
+### The smaller state ladder is enough:
+```
+[
+  "operational",
+  "degraded",
+  "compromised",
+  "failing",
+  "destroyed"
+]
+```
+#### Suggested interpretation:
+
+- Operational
+→ no meaningful active damage
+
+- Degraded
+→ works with a penalty or limitation
+
+- Compromised
+→ major capability lost or dangerous restriction
+
+- Failing
+→ barely functional, unstable, or likely to collapse
+
+- Destroyed
+→ unavailable for the rest of the encounter
+
+The descriptive tags can then carry the specific fiction:
+
+[
+  "jammed",
+  "burning",
+  "leaking",
+  "locked",
+  "exposed"
+]
+
+Those tags do not need their own universal progression rules.
+
+### Tracked and untracked resolution
+
+The Vehicle TAC tool needs two operating modes.
+
+Manual / one-off mode
+
+- The Warden enters:
+
+platform type
+current subsystem condition, defaulting to operational
+category mode
+optional preferred category
+severity inputs
+optional subsystem label
+
+- After resolution, the tool can offer:
+
+Save as Vehicle Entity
+
+That creates a temporary tracked vehicle containing the TAC result.
+
+Linked vehicle mode
+
+The Warden selects an existing browser-stored vehicle entity.
+
+- The resolver reads:
+
+platform type
+active subsystem damage
+existing condition
+previous TAC severity where relevant
+current vehicle durability
+vehicle tags and special systems
+
+- The returned update is then applied to that entity.
+
+Repeated subsystem damage
+
+The linked entity should store active subsystem records, not just a flat list of TAC names.
+
+For example:
+
+```js
+vehicleSystems: {
+  mobility: [
+    {
+      id: "left_track",
+      label: "Left Track",
+      condition: "degraded",
+      lastSeverity: "light",
+      resultId: "track_thrown",
+      tags: [
+        "movement_restricted"
+      ]
+    }
+  ]
+}
+```
+When a new result targets the same subsystem:
+
+- No existing damage
+→ use rolled severity
+
+- Existing Light damage
+→ minimum Moderate
+
+- Existing Moderate damage
+→ minimum Severe
+
+- Existing Severe damage
+→ Catastrophic
+
+- Existing Catastrophic damage
+→ Destroyed or secondary catastrophic consequence
+
+I would base escalation primarily on the subsystem’s stored lastSeverity, while condition describes its current overall usability.
+
+That avoids awkward questions such as whether every compromised subsystem must always escalate identically.
+
+### Category selection
+
+The initial modes should be:
+
+[
+  "random",
+  "preferred"
+]
+- Random
+
+Roll among the six categories.
+
+- Preferred
+
+A weapon, ammunition type, called shot, or fictional setup supplies the category.
+
+The resolver should preserve the source:
+
+preferredCategorySource:
+  "weapon"
+  | "ammunition"
+  | "called_shot"
+  | "fictional_position"
+  | "manual"
+
+That will help later when the Damage Resolver passes a preferred category through its existing TAC handoff.
+
+Specific-result selection can wait.
+
+### Entity shape
+
+Quick Entities currently have personnel-oriented fields, so vehicle extensions should be additive rather than trying to force subsystem state into conditions.statuses.
+
+A vehicle entity could add:
+```js
+vehicle: {
+  platformType: "walker",
+
+  condition: "operational",
+
+  systems: {
+    mobility: [],
+    weapons: [],
+    sensors_fire_control: [],
+    crew_cockpit: [],
+    power_systems: [],
+    armor_structure: []
+  },
+
+  heatClock: {
+    current: 0,
+    maximum: 4
+  },
+
+  activeCountdowns: []
+}
+```
+
+The ordinary Quick Entity fields can still hold:
+
+defense
+health
+conditions
+profile
+tags
+
+That lets the general Damage Resolver keep using the same AV, DR, [Armored], and segmented durability data.
+
+Vehicle TAC result shape
+```js
+{
+  resolverId: "vehicle_tac",
+
+  entityId: null,
+
+  platformType: "walker",
+
+  severity: {
+    rolled: "moderate",
+    shifted: "moderate",
+    escalated: "severe",
+    final: "severe",
+    escalationReason:
+      "existing_subsystem_damage"
+  },
+
+  category: {
+    mode: "preferred",
+    id: "mobility",
+    source: "called_shot",
+    roll: null
+  },
+
+  subsystem: {
+    id: "left_knee",
+    label: "Left Knee Actuator",
+
+    previousState: {
+      condition: "degraded",
+      lastSeverity: "light"
+    },
+
+    nextState: {
+      condition: "failing",
+      lastSeverity: "severe"
+    }
+  },
+
+  outcome: {
+    id: "leg_actuator_damaged",
+    label: "Leg Actuator Damaged",
+    effectText: "...",
+    repairMode: "emergency_stabilization",
+    tags: [
+      "locked",
+      "mobility_kill_risk"
+    ]
+  },
+
+  handoffs: {
+    wound: null,
+    hazard: null,
+    crewSave: null,
+    secondaryTac: null,
+    countdown: null,
+    bailout: null
+  },
+
+  stateChanges: []
+}
+```
+
+---
+
+```txt
+File structure
+data/
+└── vehicle-tac/
+    ├── index.js
+    ├── categories.js
+    ├── mobility.js
+    ├── weapons.js
+    ├── sensors-fire-control.js
+    ├── crew-cockpit.js
+    ├── power-systems.js
+    ├── armor-structure.js
+    ├── catastrophic.js
+    └── platform-rules.js
+
+modules/
+└── vehicle-tac-resolver.js
+
+renderers/
+└── vehicle-tac-renderer.js
+```
+
+data/vehicle-tac/index.js should be the public facade, following the same pattern as the expanded entity templates.

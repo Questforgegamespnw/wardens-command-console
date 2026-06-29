@@ -15,6 +15,8 @@ import {
   getQuickEntity,
   replaceQuickEntity,
   createEntitiesFromGroupTemplate,
+  getVehicleSubsystem,
+  applyVehicleTacResultToEntity,
   isQuickEntityError
 } from "./modules/quick-entities.js";
 
@@ -40,6 +42,11 @@ import {
 } from "./renderers/contest-renderer.js";
 
 import {
+  getActiveSkillPresets,
+  getSkillPreset
+} from "./data/skill-presets.js";
+
+import {
   resolveDamage,
   COVER_AV,
   CONCEALMENT_MODIFIERS
@@ -49,6 +56,12 @@ import {
   renderDamageForm,
   renderDamageResult
 } from "./renderers/damage-renderer.js";
+
+import {
+  getActiveDamageWeaponPresets,
+  getDamageWeaponPreset,
+  getDamageWeaponProfile
+} from "./data/damage-weapon-presets.js";
 
 import {
   renderQuickEntitiesTool,
@@ -107,12 +120,21 @@ import {
 
 import {
   resolvePersonnelTac
-} from "./modules/tac-resolver.js";
+} from "./modules/personnel-tac-resolver.js";
 
 import {
   renderTacForm,
   renderTacResult
 } from "./renderers/tac-renderer.js";
+
+import {
+  resolveVehicleTac
+} from "./modules/vehicle-tac-resolver.js";
+
+import {
+  renderVehicleTacForm,
+  renderVehicleTacResult
+} from "./renderers/vehicle-tac-renderer.js";
 
 
 const MAX_RECENT_RESULTS = 12;
@@ -144,7 +166,10 @@ const tools = {
     label: "Standard Test",
     category: "resolve",
     status: "active",
-    render: renderStandardTestForm
+    render: () =>
+      renderStandardTestForm({
+        skills: getActiveSkillPresets()
+      })
   },
 
   contest: {
@@ -152,7 +177,10 @@ const tools = {
     label: "Contest",
     category: "resolve",
     status: "active",
-    render: renderContestForm
+    render: () =>
+      renderContestForm({
+        skills: getActiveSkillPresets()
+      })
   },
 
   damage: {
@@ -164,7 +192,9 @@ const tools = {
       renderDamageForm({
         entities: appState.quickEntities,
         selectedEntityId:
-          appState.selectedEntityId
+          appState.selectedEntityId,
+        weaponPresets:
+          getActiveDamageWeaponPresets()
       })
   },
 
@@ -195,6 +225,17 @@ const tools = {
     category: "consequences",
     status: "active",
     render: renderTacForm
+  },
+
+  vehicle_tac: {
+    id: "vehicle_tac",
+    label: "Vehicle TAC",
+    category: "consequences",
+    status: "active",
+    render: () => renderVehicleTacForm({
+      entities: appState.quickEntities,
+      selectedEntityId: appState.selectedEntityId
+    })
   },
 
   quick_entities: {
@@ -234,6 +275,7 @@ const resultRenderers = {
   calm: renderCalmResult,
   wounds: renderWoundResult,
   tac: renderTacResult,
+  vehicle_tac: renderVehicleTacResult,
   hazards: renderHazardResult
 };
 
@@ -516,6 +558,11 @@ function bindActiveToolEvents(toolId) {
       updateTacCategoryFields();
       break;
 
+    case "vehicle_tac":
+      bindVehicleTacEvents();
+      updateVehicleTacFields();
+      break;
+
     case "hazards":
       bindHazardEvents();
       updateHazardOperationFields();
@@ -529,6 +576,70 @@ function bindActiveToolEvents(toolId) {
 
     default:
       break;
+  }
+}
+
+function applySkillPresetSelection({
+  presetId,
+  labelSelector,
+  valueSelector
+}) {
+  const labelInput =
+    document.querySelector(labelSelector);
+
+  const valueInput =
+    document.querySelector(valueSelector);
+
+  if (!labelInput || !valueInput) {
+    return;
+  }
+
+  if (presetId === "__manual__") {
+    labelInput.focus();
+    return;
+  }
+
+  if (!presetId) {
+    labelInput.value = "";
+    valueInput.value = 0;
+    return;
+  }
+
+  const skill =
+    getSkillPreset(presetId);
+
+  if (!skill) {
+    return;
+  }
+
+  labelInput.value = skill.label;
+  valueInput.value = skill.bonus;
+}
+
+function resetSkillPresetSelection({
+  presetSelector,
+  labelSelector,
+  valueSelector
+}) {
+  const preset =
+    document.querySelector(presetSelector);
+
+  const label =
+    document.querySelector(labelSelector);
+
+  const value =
+    document.querySelector(valueSelector);
+
+  if (preset) {
+    preset.value = "";
+  }
+
+  if (label) {
+    label.value = "";
+  }
+
+  if (value) {
+    value.value = 0;
   }
 }
 
@@ -579,6 +690,14 @@ function handleStandardTestChange(event) {
   if (event.target.name === "testType") {
     updateStandardTestTypeFields();
   }
+
+  if (event.target.id === "skill-preset") {
+    applySkillPresetSelection({
+      presetId: event.target.value,
+      labelSelector: "#skill-label",
+      valueSelector: "#skill-value"
+    });
+  }
 }
 
 function updateStandardTestTypeFields() {
@@ -592,6 +711,9 @@ function updateStandardTestTypeFields() {
   const baseLabelInput =
     document.querySelector("#base-label");
 
+  const skillPresetField =
+    document.querySelector("#skill-preset-field");
+
   const skillLabelField =
     document.querySelector("#skill-label-field");
 
@@ -603,6 +725,16 @@ function updateStandardTestTypeFields() {
 
   const skillValueInput =
     document.querySelector("#skill-value");
+
+  if (skillPresetField) {
+    skillPresetField.hidden = isSave;
+
+    skillPresetField
+      .querySelectorAll("select")
+      .forEach((control) => {
+        control.disabled = isSave;
+      });
+  }
 
   skillLabelField.hidden = isSave;
   skillValueField.hidden = isSave;
@@ -770,6 +902,11 @@ function collectModifiers() {
 function handleStandardTestReset() {
   window.setTimeout(() => {
     document.querySelector("#modifier-list").innerHTML = "";
+    resetSkillPresetSelection({
+      presetSelector: "#skill-preset",
+      labelSelector: "#skill-label",
+      valueSelector: "#skill-value"
+    });
     updateStandardTestTypeFields();
   }, 0);
 }/* -------------------------------------------------------------------------- */
@@ -787,6 +924,11 @@ function bindContestEvents() {
   form.addEventListener(
     "reset",
     handleContestReset
+  );
+
+  form.addEventListener(
+    "change",
+    handleContestChange
   );
 
   document
@@ -810,6 +952,27 @@ function bindContestEvents() {
     "click",
     handleContestModifierClick
   );
+}
+
+function handleContestChange(event) {
+  const match =
+    event.target.id.match(
+      /^contest-(a|b)-skill-preset$/
+    );
+
+  if (!match) {
+    return;
+  }
+
+  const sideId = match[1];
+
+  applySkillPresetSelection({
+    presetId: event.target.value,
+    labelSelector:
+      `#contest-${sideId}-skill-label`,
+    valueSelector:
+      `#contest-${sideId}-skill-value`
+  });
 }
 
 function updateSimultaneousOutcomeField() {
@@ -898,6 +1061,17 @@ function handleContestReset() {
     document.querySelector(
       "#contest-b-modifiers"
     ).innerHTML = "";
+
+    ["a", "b"].forEach((sideId) => {
+      resetSkillPresetSelection({
+        presetSelector:
+          `#contest-${sideId}-skill-preset`,
+        labelSelector:
+          `#contest-${sideId}-skill-label`,
+        valueSelector:
+          `#contest-${sideId}-skill-value`
+      });
+    });
 
     updateSimultaneousOutcomeField();
   }, 0);
@@ -1038,12 +1212,26 @@ function bindDamageEvents() {
   form.addEventListener("submit", handleDamageSubmit);
   form.addEventListener("change", handleDamageChange);
   form.addEventListener("reset", () => {
-    window.setTimeout(updateDamageForm, 0);
+    window.setTimeout(() => {
+      resetDamageWeaponPresetState();
+      updateDamageForm();
+    }, 0);
   });
 }
 
 function handleDamageChange(event) {
   const id = event.target.id;
+
+  if (id === "damage-weapon-preset") {
+    updateDamageWeaponProfiles();
+    applySelectedDamageWeaponProfile();
+    return;
+  }
+
+  if (id === "damage-weapon-profile") {
+    applySelectedDamageWeaponProfile();
+    return;
+  }
 
   if (
     id === "damage-mode"
@@ -1054,6 +1242,241 @@ function handleDamageChange(event) {
   ) {
     updateDamageForm({ changedId: id });
   }
+}
+
+function updateDamageWeaponProfiles() {
+  const presetId =
+    document.querySelector(
+      "#damage-weapon-preset"
+    )?.value ?? "";
+
+  const profileField =
+    document.querySelector(
+      "#damage-weapon-profile-field"
+    );
+
+  const profileSelect =
+    document.querySelector(
+      "#damage-weapon-profile"
+    );
+
+  const preset =
+    getDamageWeaponPreset(presetId);
+
+  if (
+    !profileField
+    || !profileSelect
+  ) {
+    return;
+  }
+
+  if (!preset) {
+    profileField.hidden = true;
+    profileSelect.disabled = true;
+    profileSelect.innerHTML = `
+      <option value="">
+        Choose a weapon first
+      </option>
+    `;
+
+    updateDamagePresetGuidance(null);
+    return;
+  }
+
+  profileSelect.innerHTML =
+    preset.profiles
+      .map(
+        (entry, index) => `
+          <option
+            value="${escapeHtml(entry.id)}"
+            ${index === 0 ? "selected" : ""}
+          >
+            ${escapeHtml(entry.label)}
+          </option>
+        `
+      )
+      .join("");
+
+  profileField.hidden =
+    preset.profiles.length <= 1;
+
+  profileSelect.disabled = false;
+}
+
+function applySelectedDamageWeaponProfile() {
+  const presetId =
+    document.querySelector(
+      "#damage-weapon-preset"
+    )?.value ?? "";
+
+  const profileId =
+    document.querySelector(
+      "#damage-weapon-profile"
+    )?.value ?? null;
+
+  const preset =
+    getDamageWeaponPreset(presetId);
+
+  const profile =
+    getDamageWeaponProfile(
+      preset,
+      profileId
+    );
+
+  if (!preset || !profile) {
+    updateDamagePresetGuidance(null);
+    return;
+  }
+
+  setDamageControlValue(
+    "#damage-mode",
+    profile.mode
+  );
+
+  setDamageControlValue(
+    "#damage-dice-count",
+    profile.diceCount
+  );
+
+  setDamageControlValue(
+    "#damage-die-size",
+    profile.dieSize
+  );
+
+  setDamageControlValue(
+    "#damage-fixed-amount",
+    profile.fixedDamage
+  );
+
+  setDamageControlValue(
+    "#damage-direct-wounds",
+    profile.directWounds
+  );
+
+  setDamageControlValue(
+    "#damage-penetration",
+    profile.penetration
+  );
+
+  setDamageControlValue(
+    "#damage-wound-type",
+    profile.woundType
+  );
+
+  setDamageControlValue(
+    "#damage-cover-interaction",
+    profile.coverInteraction
+  );
+
+  setDamageControlValue(
+    "#damage-preferred-tac",
+    profile.preferredTacCategory ?? ""
+  );
+
+  const tacEligible =
+    document.querySelector(
+      "#damage-attack-tac-eligible"
+    );
+
+  if (tacEligible) {
+    tacEligible.checked =
+      profile.tacEligible !== false;
+  }
+
+  const resultLabel =
+    document.querySelector(
+      "#damage-result-label"
+    );
+
+  if (resultLabel) {
+    resultLabel.value =
+      preset.label;
+  }
+
+  const manualRolls =
+    document.querySelector(
+      "#damage-manual-rolls"
+    );
+
+  if (manualRolls) {
+    manualRolls.value = "";
+  }
+
+  updateDamagePresetGuidance(
+    profile.notes
+  );
+
+  updateDamageForm({
+    changedId: "damage-weapon-profile"
+  });
+}
+
+function updateDamagePresetGuidance(
+  notes
+) {
+  const field =
+    document.querySelector(
+      "#damage-preset-guidance"
+    );
+
+  const output =
+    document.querySelector(
+      "#damage-preset-notes"
+    );
+
+  if (!field || !output) {
+    return;
+  }
+
+  const hasNotes =
+    typeof notes === "string"
+    && notes.trim() !== "";
+
+  field.hidden = !hasNotes;
+  output.textContent =
+    hasNotes ? notes : "";
+}
+
+function resetDamageWeaponPresetState() {
+  const profileField =
+    document.querySelector(
+      "#damage-weapon-profile-field"
+    );
+
+  const profileSelect =
+    document.querySelector(
+      "#damage-weapon-profile"
+    );
+
+  if (profileField) {
+    profileField.hidden = true;
+  }
+
+  if (profileSelect) {
+    profileSelect.disabled = true;
+    profileSelect.innerHTML = `
+      <option value="">
+        Choose a weapon first
+      </option>
+    `;
+  }
+
+  updateDamagePresetGuidance(null);
+}
+
+function setDamageControlValue(
+  selector,
+  value
+) {
+  const control =
+    document.querySelector(selector);
+
+  if (!control) {
+    return;
+  }
+
+  control.value =
+    value ?? "";
 }
 
 function updateDamageForm({ changedId = null } = {}) {
@@ -1878,6 +2301,166 @@ function handleTacSubmit(event) {
       error
     );
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vehicle TAC                                                                */
+/* -------------------------------------------------------------------------- */
+
+function bindVehicleTacEvents() {
+  const form = document.querySelector("#vehicle-tac-form");
+  if (!form) return;
+  form.addEventListener("submit", handleVehicleTacSubmit);
+  form.addEventListener("change", updateVehicleTacFields);
+  form.addEventListener("reset", () => window.setTimeout(updateVehicleTacFields, 0));
+}
+
+function updateVehicleTacFields() {
+  const linked = getLinkedVehicleTacEntity();
+  const preferred = getCheckedValue("vehicleTacCategoryMode", "random") === "preferred";
+  ["#vehicle-tac-preferred-field", "#vehicle-tac-preferred-source-field"].forEach((selector) => setVehicleTacField(selector, !preferred));
+  setVehicleTacField("#vehicle-tac-category-roll-field", preferred);
+  setVehicleTacField("#vehicle-tac-existing-condition-field", Boolean(linked));
+  setVehicleTacField("#vehicle-tac-existing-severity-field", Boolean(linked));
+  setVehicleTacField("#vehicle-tac-create-entity-section", Boolean(linked));
+  const label = document.querySelector("#vehicle-tac-label");
+  const platform = document.querySelector("#vehicle-tac-platform");
+  if (linked) {
+    label.value = linked.label ?? ""; label.disabled = true;
+    platform.value = linked.vehicle?.platformType ?? "light_vehicle"; platform.disabled = true;
+  } else { label.disabled = false; platform.disabled = false; }
+}
+
+function setVehicleTacField(selector, hidden) {
+  const field = document.querySelector(selector);
+  if (!field) return;
+  field.hidden = hidden;
+  field.querySelectorAll("input, select, textarea").forEach((control) => { control.disabled = hidden; });
+}
+
+function getLinkedVehicleTacEntity() {
+  const id = document.querySelector("#vehicle-tac-entity-id")?.value ?? "";
+  return id ? getQuickEntity(appState.quickEntities, id) : null;
+}
+
+function handleVehicleTacSubmit(event) {
+  event.preventDefault();
+  try {
+    const linked = getLinkedVehicleTacEntity();
+    const categoryMode = getCheckedValue("vehicleTacCategoryMode", "random");
+    const category = categoryMode === "preferred" ? document.querySelector("#vehicle-tac-preferred-category").value : null;
+    const subsystemId = document.querySelector("#vehicle-tac-subsystem-id").value.trim() || null;
+    const existingSubsystem = linked
+      ? getVehicleSubsystem(linked, category ?? inferVehicleTacCategoryFromSubsystem(linked, subsystemId), subsystemId)
+      : buildManualExistingVehicleSubsystem();
+    const forcedSeverity = document.querySelector("#vehicle-tac-forced-severity").value || null;
+    const categoryRoll = document.querySelector("#vehicle-tac-category-roll").value;
+    const outcomeRoll = document.querySelector("#vehicle-tac-outcome-roll").value;
+    const vehicleTac = resolveVehicleTac({
+      tacCount: document.querySelector("#vehicle-tac-count").value,
+      severityShift: document.querySelector("#vehicle-tac-severity-shift").value,
+      forcedSeverity,
+      categoryMode,
+      preferredCategory: category,
+      preferredCategorySource: categoryMode === "preferred" ? document.querySelector("#vehicle-tac-preferred-source").value : null,
+      forcedCategoryRoll: categoryRoll === "" ? null : Number(categoryRoll),
+      forcedOutcomeRoll: outcomeRoll === "" ? null : Number(outcomeRoll),
+      platformType: linked?.vehicle?.platformType ?? document.querySelector("#vehicle-tac-platform").value,
+      subsystemId,
+      subsystemLabel: document.querySelector("#vehicle-tac-subsystem-label").value.trim() || null,
+      existingSubsystem,
+    });
+    let targetEntity = linked;
+    if (linked) {
+      const updated = applyVehicleTacResultToEntity(linked, vehicleTac);
+      if (isQuickEntityError(updated)) throw new Error(updated.errors.map((entry)=>entry.message).join(" "));
+      appState.quickEntities = replaceQuickEntity(appState.quickEntities, updated);
+      targetEntity = updated;
+    } else if (document.querySelector("#vehicle-tac-save-entity")?.checked) {
+      const created = createVehicleEntityFromTac(vehicleTac);
+      if (isQuickEntityError(created)) throw new Error(created.errors.map((entry)=>entry.message).join(" "));
+      appState.quickEntities = [...appState.quickEntities, created];
+      appState.selectedEntityId = created.id;
+      targetEntity = created;
+    }
+    
+    const resultLabel =
+  targetEntity?.label
+  ?? (
+    document
+      .querySelector("#vehicle-tac-label")
+      .value
+      .trim()
+    || vehicleTac.outcome.label
+  );
+  
+    const result = createConsoleResult({
+  resolverId: "vehicle_tac",
+
+  label: resultLabel,
+
+  status:
+    vehicleTac.finalSeverity === "catastrophic"
+      ? "failure"
+      : "resolved",
+
+  summary:
+    `${vehicleTac.outcome.label} — ${
+      formatAppIdentifier(
+        vehicleTac.subsystem.nextState.condition
+      )
+    }`,
+
+  ruling:
+    vehicleTac.outcome.effectText,
+
+  metadata: {
+    vehicleTac,
+
+    linkedEntityId:
+      targetEntity?.id ?? null
+  }
+});
+
+    addRecentResult(result); appState.activeResultId = result.id;
+    renderActiveResult(); renderRecentResults(); renderQuickEntitySessionBoard(); persistSessionState();
+    if (linked || targetEntity) renderActiveTool();
+  } catch (error) { addResolverExceptionResult("vehicle_tac", "Vehicle TAC Error", error); }
+}
+
+function buildManualExistingVehicleSubsystem() {
+  const lastSeverity = document.querySelector("#vehicle-tac-existing-severity")?.value || null;
+  if (!lastSeverity) return null;
+  return {
+    id: document.querySelector("#vehicle-tac-subsystem-id").value.trim() || "manual_subsystem",
+    label: document.querySelector("#vehicle-tac-subsystem-label").value.trim() || "Subsystem",
+    condition: document.querySelector("#vehicle-tac-existing-condition").value,
+    lastSeverity,
+  };
+}
+
+function inferVehicleTacCategoryFromSubsystem(entity, subsystemId) {
+  if (!subsystemId) return null;
+  for (const [category, entries] of Object.entries(entity.vehicle?.systems ?? {})) {
+    if (entries.some((entry) => entry.id === subsystemId)) return category;
+  }
+  return null;
+}
+
+function createVehicleEntityFromTac(vehicleTac) {
+  const hp = Number(document.querySelector("#vehicle-tac-health-per-wound").value);
+  const wounds = Number(document.querySelector("#vehicle-tac-wounds").value);
+  const base = createQuickEntity({
+    label: document.querySelector("#vehicle-tac-label").value.trim() || "Vehicle",
+    type: "vehicle",
+    defense: { av: Number(document.querySelector("#vehicle-tac-av").value), dr: Number(document.querySelector("#vehicle-tac-dr").value), coverAv: 0, armored: true, tags: ["vehicle"] },
+    health: { healthPerWound: hp, currentHealth: hp, maximumWounds: wounds, woundsRemaining: wounds },
+    conditions: { bleeding: 0, activeTac: [], statuses: [] },
+    vehicle: { platformType: vehicleTac.platformType, condition: "operational", systems: {}, heatClock: { current: 0, maximum: 4 }, activeCountdowns: [] },
+    tags: ["vehicle", vehicleTac.platformType], notes: "",
+  });
+  if (isQuickEntityError(base)) return base;
+  return applyVehicleTacResultToEntity(base, vehicleTac);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -3764,6 +4347,8 @@ function renderActiveResult() {
   if (result.status === "error") {
     elements.activeResult.innerHTML =
       renderErrorResult(result);
+
+    revealActiveResult();
     return;
   }
 
@@ -3782,6 +4367,24 @@ function renderActiveResult() {
           errors: []
         }
       });
+
+  revealActiveResult();
+}
+
+function revealActiveResult() {
+  if (
+    !elements.activeResult
+    || elements.activeResult.innerHTML.trim() === ""
+  ) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    elements.activeResult.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
 }
 
 function getActiveResult() {

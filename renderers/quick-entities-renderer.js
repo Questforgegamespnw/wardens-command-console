@@ -167,6 +167,8 @@ export function renderQuickEntityListItem(
           · DR
           ${formatNumber(entity.defense.dr)}
         </span>
+
+        ${renderVehicleCompactSummary(entity)}
       </button>
 
       <div class="quick-entity-item__actions">
@@ -253,22 +255,10 @@ export function renderQuickEntityEditor({
                 Manual / No Template
               </option>
 
-              ${templates
-                .map(
-                  (template) => `
-                    <option
-                      value="${escapeHtml(template.id)}"
-                      ${
-                        entity?.templateId === template.id
-                          ? "selected"
-                          : ""
-                      }
-                    >
-                      ${escapeHtml(template.label)}
-                    </option>
-                  `
-                )
-                .join("")}
+              ${renderGroupedTemplateOptions(
+                templates,
+                entity?.templateId ?? null
+              )}
             </select>
 
             <p class="form-help">
@@ -525,6 +515,8 @@ export function renderQuickEntityEditor({
         </div>
       </section>
 
+      ${renderVehicleEditorState(entity)}
+
       <div class="form-actions">
         ${
           isEditing
@@ -613,6 +605,8 @@ export function renderQuickEntityBoardCard(
             `
             : ""
         }
+
+        ${renderVehicleCompactSummary(entity)}
       </button>
 
       <div class="quick-entity-board-card__actions">
@@ -635,6 +629,244 @@ export function renderQuickEntityBoardCard(
       </div>
     </article>
   `;
+}
+
+
+function renderVehicleCompactSummary(entity) {
+  if (entity?.type !== "vehicle") {
+    return "";
+  }
+
+  const platform =
+    formatIdentifier(
+      entity.vehicle?.platformType
+      ?? "light_vehicle"
+    );
+
+  const condition =
+    formatIdentifier(
+      entity.vehicle?.condition
+      ?? "operational"
+    );
+
+  const damagedSystems =
+    getVehicleSubsystemEntries(entity);
+
+  return `
+    <span class="quick-entity-item__summary quick-entity-item__summary--vehicle">
+      ${escapeHtml(platform)}
+      · ${escapeHtml(condition)}
+      · Damaged Systems ${damagedSystems.length}
+    </span>
+  `;
+}
+
+function renderVehicleEditorState(entity) {
+  if (entity?.type !== "vehicle") {
+    return "";
+  }
+
+  const vehicle =
+    entity.vehicle ?? {};
+
+  const subsystemGroups =
+    getVehicleSubsystemGroups(entity);
+
+  const heatClock =
+    vehicle.heatClock ?? {
+      current: 0,
+      maximum: 4
+    };
+
+  const countdowns =
+    Array.isArray(vehicle.activeCountdowns)
+      ? vehicle.activeCountdowns
+      : [];
+
+  return `
+    <section class="form-section quick-entity-vehicle-state">
+      <div class="form-section__heading">
+        <div>
+          <h3>Vehicle State</h3>
+
+          <p class="form-help">
+            Vehicle TAC updates this state automatically.
+          </p>
+        </div>
+      </div>
+
+      <div class="result-grid">
+        ${renderReadOnlyStat(
+          "Platform",
+          formatIdentifier(
+            vehicle.platformType
+            ?? "light_vehicle"
+          )
+        )}
+
+        ${renderReadOnlyStat(
+          "Condition",
+          formatIdentifier(
+            vehicle.condition
+            ?? "operational"
+          )
+        )}
+
+        ${renderReadOnlyStat(
+          "Heat",
+          `${formatNumber(
+            heatClock.current ?? 0
+          )} / ${formatNumber(
+            heatClock.maximum ?? 4
+          )}`
+        )}
+
+        ${renderReadOnlyStat(
+          "Countdowns",
+          countdowns.length
+        )}
+      </div>
+
+      ${
+        subsystemGroups.length > 0
+          ? `
+            <div class="quick-entity-vehicle-systems">
+              ${subsystemGroups
+                .map(renderVehicleSubsystemGroup)
+                .join("")}
+            </div>
+          `
+          : `
+            <div class="empty-state empty-state--compact">
+              No damaged vehicle subsystems.
+            </div>
+          `
+      }
+    </section>
+  `;
+}
+
+function renderVehicleSubsystemGroup(group) {
+  return `
+    <section class="quick-entity-vehicle-system-group">
+      <h4>
+        ${escapeHtml(
+          formatIdentifier(group.category)
+        )}
+      </h4>
+
+      <div class="quick-entity-vehicle-system-list">
+        ${group.entries
+          .map(renderVehicleSubsystemEntry)
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderVehicleSubsystemEntry(entry) {
+  const tags =
+    Array.isArray(entry.tags)
+      ? entry.tags
+      : [];
+
+  return `
+    <article class="quick-entity-vehicle-system">
+      <div class="quick-entity-vehicle-system__heading">
+        <strong>
+          ${escapeHtml(
+            entry.label
+            ?? formatIdentifier(entry.id)
+          )}
+        </strong>
+
+        <span class="tool-button__status">
+          ${escapeHtml(
+            formatIdentifier(
+              entry.condition
+              ?? "degraded"
+            )
+          )}
+        </span>
+      </div>
+
+      <p class="form-help">
+        Severity:
+        ${escapeHtml(
+          formatIdentifier(
+            entry.lastSeverity
+            ?? "unknown"
+          )
+        )}
+      </p>
+
+      ${
+        tags.length > 0
+          ? `
+            <p class="form-help">
+              ${escapeHtml(
+                tags
+                  .map(formatIdentifier)
+                  .join(", ")
+              )}
+            </p>
+          `
+          : ""
+      }
+    </article>
+  `;
+}
+
+function getVehicleSubsystemGroups(entity) {
+  const systems =
+    entity?.vehicle?.systems;
+
+  if (
+    !systems ||
+    typeof systems !== "object"
+  ) {
+    return [];
+  }
+
+  return Object.entries(systems)
+    .filter(
+      ([, entries]) =>
+        Array.isArray(entries)
+        && entries.length > 0
+    )
+    .map(
+      ([category, entries]) => ({
+        category,
+        entries
+      })
+    );
+}
+
+function getVehicleSubsystemEntries(entity) {
+  return getVehicleSubsystemGroups(entity)
+    .flatMap((group) => group.entries);
+}
+
+function renderReadOnlyStat(label, value) {
+  return `
+    <div class="result-stat">
+      <span class="result-stat__label">
+        ${escapeHtml(label)}
+      </span>
+
+      <span class="result-stat__value">
+        ${escapeHtml(String(value))}
+      </span>
+    </div>
+  `;
+}
+
+function formatIdentifier(value) {
+  return String(value ?? "—")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) =>
+      character.toUpperCase()
+    );
 }
 
 export function renderQuickEntityErrors(errors) {
@@ -676,6 +908,117 @@ function renderEmptyQuickEntityState() {
       </button>
     </div>
   `;
+}
+
+function renderGroupedTemplateOptions(
+  templates,
+  selectedTemplateId
+) {
+  const groups = groupTemplatesForPicker(templates);
+
+  return groups
+    .map(
+      (group) => `
+        <optgroup
+          label="${escapeHtml(group.label)}"
+        >
+          ${group.templates
+            .map(
+              (template) => `
+                <option
+                  value="${escapeHtml(template.id)}"
+                  ${
+                    selectedTemplateId === template.id
+                      ? "selected"
+                      : ""
+                  }
+                >
+                  ${escapeHtml(template.label)}
+                </option>
+              `
+            )
+            .join("")}
+        </optgroup>
+      `
+    )
+    .join("");
+}
+
+function groupTemplatesForPicker(templates) {
+  const grouped = new Map();
+
+  for (const template of templates) {
+    const categoryLabel =
+      template.categoryLabel
+      ?? formatIdentifier(
+        template.category
+        ?? template.type
+        ?? "Other"
+      );
+
+    const groupLabel =
+      template.groupLabel
+      ?? formatIdentifier(
+        template.group
+        ?? "Other"
+      );
+
+    const key =
+      `${categoryLabel}::${groupLabel}`;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        label:
+          `${categoryLabel} — ${groupLabel}`,
+        category:
+          template.category ?? "other",
+        group:
+          template.group ?? "other",
+        sortOrder:
+          Number(template.sortOrder ?? 100),
+        templates: [],
+      });
+    }
+
+    grouped.get(key).templates.push(template);
+  }
+
+  return [...grouped.values()]
+    .sort((left, right) => {
+      const categoryOrder = {
+        personnel: 10,
+        vehicle: 20,
+        other: 90,
+      };
+
+      const categoryDifference =
+        (categoryOrder[left.category] ?? 50)
+        - (categoryOrder[right.category] ?? 50);
+
+      if (categoryDifference !== 0) {
+        return categoryDifference;
+      }
+
+      const orderDifference =
+        left.sortOrder - right.sortOrder;
+
+      if (orderDifference !== 0) {
+        return orderDifference;
+      }
+
+      return left.label.localeCompare(
+        right.label
+      );
+    })
+    .map((group) => ({
+      ...group,
+      templates: [...group.templates]
+        .sort((left, right) =>
+          left.label.localeCompare(
+            right.label
+          )
+        ),
+    }));
 }
 
 function renderEntityTypeOptions(

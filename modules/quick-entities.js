@@ -75,6 +75,10 @@ export function createQuickEntity(
       ...normalized.tags
     ],
 
+    vehicle: cloneValue(
+      normalized.vehicle
+    ),
+
     notes: normalized.notes,
     createdAt: timestamp,
     updatedAt: timestamp
@@ -153,6 +157,11 @@ export function createEntityFromTemplate(
         ?? []
       )
     ],
+
+    vehicle:
+      overrides.vehicle
+      ?? defaults.vehicle
+      ?? {},
 
     notes:
       typeof overrides.notes === "string"
@@ -300,6 +309,10 @@ export function updateQuickEntity(
       ...candidate.tags
     ],
 
+    vehicle: cloneValue(
+      candidate.vehicle
+    ),
+
     notes: candidate.notes,
     updatedAt: services.now()
   };
@@ -371,6 +384,11 @@ export function duplicateQuickEntity(
         overrides.tags
         ?? entity.tags
         ?? [],
+
+      vehicle:
+        overrides.vehicle
+        ?? entity.vehicle
+        ?? {},
 
       notes:
         typeof overrides.notes === "string"
@@ -822,6 +840,11 @@ function normalizeQuickEntityInput(input = {}) {
         ? [...input.tags]
         : [],
 
+    vehicle:
+      isPlainObject(input.vehicle)
+        ? normalizeVehicleState(input.vehicle)
+        : {},
+
     notes:
       typeof input.notes === "string"
         ? input.notes
@@ -1158,6 +1181,55 @@ function createEntityId(prefix = "entity") {
     .slice(2, 8);
 
   return `${prefix}_${time}_${random}`;
+}
+
+function normalizeVehicleState(vehicle = {}) {
+  const systems = {};
+  for (const [category, entries] of Object.entries(vehicle.systems ?? {})) {
+    systems[category] = Array.isArray(entries)
+      ? entries.map((entry) => cloneValue(entry))
+      : [];
+  }
+  return {
+    platformType:
+      typeof vehicle.platformType === "string"
+        ? vehicle.platformType
+        : "light_vehicle",
+    condition:
+      typeof vehicle.condition === "string"
+        ? vehicle.condition
+        : "operational",
+    systems,
+    heatClock: cloneValue(vehicle.heatClock ?? { current: 0, maximum: 4 }),
+    activeCountdowns: Array.isArray(vehicle.activeCountdowns)
+      ? vehicle.activeCountdowns.map((entry) => cloneValue(entry))
+      : [],
+  };
+}
+
+export function getVehicleSubsystem(entity, category, subsystemId) {
+  const entries = entity?.vehicle?.systems?.[category];
+  if (!Array.isArray(entries) || !subsystemId) return null;
+  return entries.find((entry) => entry.id === subsystemId) ?? null;
+}
+
+export function applyVehicleTacResultToEntity(entity, vehicleTac, context = {}) {
+  if (!isPlainObject(entity) || entity.type !== "vehicle") {
+    return createEntityError("apply_vehicle_tac", [createValidationError("entity", "invalid_vehicle", "Vehicle TAC requires a vehicle Quick Entity.")]);
+  }
+  if (!isPlainObject(vehicleTac) || vehicleTac.resolverId !== "vehicle_tac") {
+    return createEntityError("apply_vehicle_tac", [createValidationError("vehicleTac", "invalid_result", "A Vehicle TAC result is required.")]);
+  }
+  const category = vehicleTac.category?.id;
+  const nextState = vehicleTac.subsystem?.nextState;
+  if (!category || !nextState?.id) {
+    return createEntityError("apply_vehicle_tac", [createValidationError("vehicleTac.subsystem", "missing_state", "Vehicle TAC result has no subsystem state.")]);
+  }
+  const vehicle = normalizeVehicleState(entity.vehicle);
+  const entries = [...(vehicle.systems[category] ?? [])];
+  const index = entries.findIndex((entry) => entry.id === nextState.id);
+  if (index >= 0) entries[index] = cloneValue(nextState); else entries.push(cloneValue(nextState));
+  return updateQuickEntity(entity, { vehicle: { ...vehicle, platformType: vehicleTac.platformType, systems: { ...vehicle.systems, [category]: entries } } }, context);
 }
 
 function cloneValue(value) {
