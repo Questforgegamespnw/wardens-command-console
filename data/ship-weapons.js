@@ -25,3 +25,93 @@ export function getShipWeapon(id) {
 export function listShipWeapons() {
   return Object.values(SHIP_WEAPONS);
 }
+
+
+export function normalizeShipWeaponProfiles(weaponOrId) {
+  const weapon = typeof weaponOrId === "string"
+    ? getShipWeapon(weaponOrId)
+    : weaponOrId;
+
+  if (!weapon) return [];
+
+  if (Array.isArray(weapon.profiles)) {
+    return weapon.profiles;
+  }
+
+  const base = {
+    id: "standard",
+    label: "Standard",
+    weaponSize: weapon.weaponSize ?? 1,
+    baseSeverity: weapon.baseSeverity,
+    penetration: weapon.penetration ?? "none",
+    rangeBands: weapon.rangeBands ?? [],
+    hullDamageMode: weapon.hullDamageByDefault === false ? "none" : "normal",
+    minimumShipTacSeverity: null,
+    preferredTacCategories: [],
+    authorization:
+      weapon.scenarioScale ? "scenario"
+      : weapon.executiveAuthorization ? "executive"
+      : Number(weapon.weaponSize ?? 0) >= 5 ? "military"
+      : "normal",
+    defensiveOnly: weapon.defensiveOnly === true,
+    notes: "",
+  };
+
+  const profiles = [base];
+
+  if (weapon.id === "point_defense_cluster") {
+    profiles.push({
+      ...base,
+      id: "anti_missile_drone_shuttle",
+      label: "Missile / Drone / Shuttle",
+      baseSeverity: "solid",
+    });
+  }
+
+  if (weapon.id === "ion_snare") {
+    profiles[0] = {
+      ...base,
+      hullDamageMode: "none",
+      preferredTacCategories: ["power_systems", "mobility_thrusters"],
+      notes: "Bypasses ordinary Hull damage and attacks ship systems.",
+    };
+  }
+
+  if (weapon.id === "torpedo") {
+    profiles[0] = {
+      ...base,
+      minimumShipTacSeverity: "moderate",
+    };
+    profiles.push({
+      ...profiles[0],
+      id: "siege_payload",
+      label: "Siege Payload",
+      penetration: "siege",
+    });
+  }
+
+  if (weapon.id === "military_railgun") {
+    profiles.push({
+      ...base,
+      id: "peer_hardened_target",
+      label: "Peer Hardened Target",
+      penetration: "anti_armor",
+    });
+  }
+
+  if (weapon.sustainedPenetration) {
+    profiles.push({
+      ...base,
+      id: "sustained_lock",
+      label: "Sustained Lock",
+      penetration: weapon.sustainedPenetration,
+    });
+  }
+
+  return profiles;
+}
+
+export function getShipWeaponProfile(weaponOrId, profileId = null) {
+  const profiles = normalizeShipWeaponProfiles(weaponOrId);
+  return profiles.find((profile) => profile.id === profileId) ?? profiles[0] ?? null;
+}

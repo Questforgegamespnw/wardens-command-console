@@ -544,6 +544,22 @@ A Quick Entity may track:
 - active countdowns
 - short Warden notes
 
+---
+
+## Ship Entity Templates
+
+Ship Entities can now be initialized from a library of calibrated Class 0–V chassis templates.
+
+Templates include mechanical values for Class, Hull, Protection Rating, ship Stats, hardpoints, Weapon Size limits, default weapons, crew scale, damage-control behavior, escape capacity, and disablement profile. Template values remain editable after selection.
+
+The library includes official Shipbreaker reference chassis and broader homebrew extrapolations for independent, commercial, corporate, naval, and strategic-civilian assets.
+
+The overhaul separates Hull from Protection Rating and supports sustained dogfight and naval-exchange pacing. Ships may become disabled through accumulated Ship TAC before Hull reaches zero. Reaching zero Hull normally disables the vessel and triggers a guaranteed Severe Ship TAC against a critical system rather than automatically destroying the ship.
+
+Classes VI–VIII are reserved for later sectional, district, and civic-crisis interfaces.
+
+---
+
 ### Health model
 
 Health is tracked within the current Wound band.

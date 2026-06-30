@@ -137,6 +137,60 @@ import {
 } from "./renderers/vehicle-tac-renderer.js";
 
 
+import {
+  resolveShipCombat
+} from "./modules/ship-combat-resolver.js";
+
+import {
+  renderShipCombatForm,
+  renderShipCombatResult,
+  getShipWeaponProfilesForRenderer
+} from "./renderers/ship-combat-renderer.js";
+
+import {
+  listShipWeapons,
+  getShipWeapon,
+  getShipWeaponProfile
+} from "./data/ship-weapons.js";
+
+import {
+  resolveShipTac
+} from "./modules/ship-tac-resolver.js";
+
+import {
+  renderShipTacForm,
+  renderShipTacResult,
+  getShipTacLocationsForCategory
+} from "./renderers/ship-tac-renderer.js";
+
+import {
+  createShipEntity,
+  getShipEntity,
+  replaceShipEntity,
+  removeShipEntity,
+  duplicateShipEntity,
+  applyShipCombatResult,
+  applyShipTacResult,
+  countUnresolvedSevereShipTac,
+  createShipEntityFromTemplate
+} from "./modules/ship-entities.js";
+
+import {
+  renderShipEntitiesTool,
+  renderShipEntityBoard
+} from "./renderers/ship-entities-renderer.js";
+
+import {
+  getActiveShipEntityTemplates,
+  getShipEntityTemplate
+} from "./data/ship-entity-templates.js";
+
+import {
+  EXPOSED_SHIP_TARGET_DETAILS,
+  GROUND_TO_SHIP_DEFAULT_SIZE
+} from "./data/ground-fire-against-ships.js";
+
+
 const MAX_RECENT_RESULTS = 12;
 const STORAGE_KEY = "warden_console_session_v1";
 
@@ -152,6 +206,10 @@ const appState = {
 
   hazardTrackers: [],
   selectedHazardTrackerId: null,
+
+  shipEntities: [],
+  selectedShipEntityId: null,
+  editingShipEntityId: null,
 
   preferences: {
     sessionTrayExpanded: true,
@@ -198,6 +256,19 @@ const tools = {
       })
   },
 
+  ship_combat: {
+    id: "ship_combat",
+    label: "Ship Combat",
+    category: "resolve",
+    status: "active",
+    render: () =>
+      renderShipCombatForm({
+        ships: appState.shipEntities,
+        selectedShipId: appState.selectedShipEntityId,
+        weapons: listShipWeapons()
+      })
+  },
+
   calm: {
     id: "calm",
     label: "Calm",
@@ -238,6 +309,18 @@ const tools = {
     })
   },
 
+  ship_tac: {
+    id: "ship_tac",
+    label: "Ship TAC",
+    category: "consequences",
+    status: "active",
+    render: () =>
+      renderShipTacForm({
+        ships: appState.shipEntities,
+        selectedShipId: appState.selectedShipEntityId
+      })
+  },
+
   quick_entities: {
     id: "quick_entities",
     label: "Quick Entities",
@@ -251,6 +334,20 @@ const tools = {
         selectedEntityId: appState.selectedEntityId,
         editingEntity: getEditingEntity(),
         errors: appState.quickEntityErrors
+      })
+  },
+
+  ship_entities: {
+    id: "ship_entities",
+    label: "Ship Entities",
+    category: "session",
+    status: "active",
+    render: () =>
+      renderShipEntitiesTool({
+        ships: appState.shipEntities,
+        templates: getActiveShipEntityTemplates(),
+        selectedShipId: appState.selectedShipEntityId,
+        editingShip: getEditingShipEntity()
       })
   },
 
@@ -276,6 +373,8 @@ const resultRenderers = {
   wounds: renderWoundResult,
   tac: renderTacResult,
   vehicle_tac: renderVehicleTacResult,
+  ship_combat: renderShipCombatResult,
+  ship_tac: renderShipTacResult,
   hazards: renderHazardResult
 };
 
@@ -308,6 +407,7 @@ function initializeApp() {
   renderActiveResult();
   renderRecentResults();
   renderQuickEntitySessionBoard();
+  renderShipEntitySessionBoard();
   renderHazardSessionBoard();
   renderSessionTrayState();
 }
@@ -328,6 +428,8 @@ function cacheElements() {
     document.querySelector("#recent-results");
   elements.quickEntitySummary =
     document.querySelector("#quick-entity-summary");
+  elements.shipEntitySummary =
+    document.querySelector("#ship-entity-summary");
   elements.hazardSummary =
     document.querySelector("#hazard-summary");
   elements.mobileOverlay =
@@ -359,6 +461,16 @@ function bindShellEvents() {
   document.addEventListener(
     "click",
     handleQuickEntityAction
+  );
+
+  document.addEventListener(
+    "click",
+    handleShipEntityAction
+  );
+
+  document.addEventListener(
+    "click",
+    handleShipResultAction
   );
 
   document.addEventListener(
@@ -542,6 +654,11 @@ function bindActiveToolEvents(toolId) {
       updateDamageForm();
       break;
 
+    case "ship_combat":
+      bindShipCombatEvents();
+      updateShipCombatFields();
+      break;
+
     case "calm":
       bindCalmEvents();
       updateCalmOperationFields();
@@ -563,6 +680,11 @@ function bindActiveToolEvents(toolId) {
       updateVehicleTacFields();
       break;
 
+    case "ship_tac":
+      bindShipTacEvents();
+      updateShipTacFields();
+      break;
+
     case "hazards":
       bindHazardEvents();
       updateHazardOperationFields();
@@ -572,6 +694,10 @@ function bindActiveToolEvents(toolId) {
 
     case "quick_entities":
       bindQuickEntityToolEvents();
+      break;
+
+    case "ship_entities":
+      bindShipEntityToolEvents();
       break;
 
     default:
@@ -1793,6 +1919,751 @@ function buildDamageResultRuling(damage) {
     return "Apply the displayed durability change to the target.";
   }
   return "No damage or TAC passes the target's defenses.";
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Ship Combat                                                                */
+/* -------------------------------------------------------------------------- */
+
+function bindShipCombatEvents() {
+  const form = document.querySelector("#ship-combat-form");
+  if (!form) return;
+
+  form.addEventListener("submit", handleShipCombatSubmit);
+  form.addEventListener("change", handleShipCombatChange);
+  form.addEventListener("reset", () => {
+    window.setTimeout(updateShipCombatFields, 0);
+  });
+}
+
+function handleShipCombatChange(event) {
+  const id = event.target.id;
+
+  if (id === "ship-combat-weapon") {
+    updateShipCombatWeaponProfiles();
+    applySelectedShipCombatProfile();
+    return;
+  }
+
+  if (id === "ship-combat-profile") {
+    applySelectedShipCombatProfile();
+    return;
+  }
+
+  if (id === "ship-combat-ground-category") {
+    const value = event.target.value;
+    const input = document.querySelector("#ship-combat-weapon-size");
+    if (input) input.value = GROUND_TO_SHIP_DEFAULT_SIZE[value] ?? 1;
+  }
+
+  if (
+    id === "ship-combat-source"
+    || id === "ship-combat-entity-id"
+    || id === "ship-combat-class"
+    || id === "ship-combat-vulnerable"
+    || id === "ship-combat-exposed-system"
+  ) {
+    updateShipCombatFields();
+  }
+}
+
+function updateShipCombatWeaponProfiles() {
+  const weaponId = document.querySelector("#ship-combat-weapon")?.value ?? "";
+  const field = document.querySelector("#ship-combat-profile-field");
+  const select = document.querySelector("#ship-combat-profile");
+  if (!field || !select) return;
+
+  if (!weaponId) {
+    field.hidden = true;
+    select.innerHTML = "";
+    return;
+  }
+
+  const weapon = getShipWeapon(weaponId);
+  const profiles = getShipWeaponProfilesForRenderer(weapon);
+
+  select.innerHTML = profiles.map((profile) => `
+    <option value="${escapeHtml(profile.id)}">
+      ${escapeHtml(profile.label)}
+    </option>
+  `).join("");
+
+  field.hidden = profiles.length <= 1;
+}
+
+function applySelectedShipCombatProfile() {
+  const weaponId = document.querySelector("#ship-combat-weapon")?.value ?? "";
+  if (!weaponId) return;
+
+  const weapon = getShipWeapon(weaponId);
+  const profileId = document.querySelector("#ship-combat-profile")?.value ?? null;
+  const profile = getShipWeaponProfile(weapon, profileId);
+  if (!profile) return;
+
+  document.querySelector("#ship-combat-weapon-label").value = weapon.label;
+  document.querySelector("#ship-combat-weapon-size").value = profile.weaponSize ?? 1;
+  document.querySelector("#ship-combat-base-severity").value = profile.baseSeverity ?? "no_effect";
+  document.querySelector("#ship-combat-penetration").value = profile.penetration ?? "none";
+
+  const range = profile.rangeBands?.[0];
+  if (range && document.querySelector("#ship-combat-range")) {
+    document.querySelector("#ship-combat-range").value = range;
+  }
+}
+
+function updateShipCombatFields() {
+  const source = document.querySelector("#ship-combat-source")?.value ?? "ship_weapon";
+  toggleField("#ship-combat-weapon-field", source === "ship_weapon");
+  toggleField("#ship-combat-ground-field", source === "ground_vehicle");
+
+  const linked = getLinkedShipCombatEntity();
+
+  [
+    "#ship-combat-target-label",
+    "#ship-combat-class",
+    "#ship-combat-pr",
+    "#ship-combat-hull",
+    "#ship-combat-max-hull",
+    "#ship-combat-megadamage-current"
+  ].forEach((selector) => {
+    const control = document.querySelector(selector);
+    if (control) control.disabled = Boolean(linked);
+  });
+
+  if (linked) {
+    document.querySelector("#ship-combat-target-label").value = linked.label;
+    document.querySelector("#ship-combat-class").value = linked.scale.classId;
+    document.querySelector("#ship-combat-pr").value = linked.scale.protectionRating;
+    document.querySelector("#ship-combat-hull").value = linked.scale.currentHull;
+    document.querySelector("#ship-combat-max-hull").value = linked.scale.maximumHull;
+    document.querySelector("#ship-combat-megadamage-current").value = linked.scale.currentMegadamage;
+  }
+
+  const classId = Number(
+    linked?.scale?.classId
+    ?? document.querySelector("#ship-combat-class")?.value
+    ?? 1
+  );
+
+  toggleField(
+    "#ship-combat-major-section-field",
+    classId >= 4 && classId <= 6
+  );
+
+  toggleField(
+    "#ship-combat-district-field",
+    classId >= 7
+  );
+
+  const vulnerable =
+    document.querySelector("#ship-combat-vulnerable")?.checked === true;
+
+  toggleField("#ship-combat-vulnerability-state-field", vulnerable);
+  toggleField("#ship-combat-vulnerability-shift-field", vulnerable);
+  toggleField("#ship-combat-exposed-field", vulnerable);
+}
+
+function getLinkedShipCombatEntity() {
+  const id = document.querySelector("#ship-combat-entity-id")?.value ?? "";
+  return id ? getShipEntity(appState.shipEntities, id) : null;
+}
+
+function collectShipCombatInput(linkedShip) {
+  const weaponId = document.querySelector("#ship-combat-weapon")?.value ?? "";
+  const source = document.querySelector("#ship-combat-source").value;
+  let profile = null;
+  let weapon = null;
+
+  if (source === "ship_weapon" && weaponId) {
+    weapon = getShipWeapon(weaponId);
+    profile = getShipWeaponProfile(
+      weapon,
+      document.querySelector("#ship-combat-profile")?.value ?? null
+    );
+  }
+
+  const exposedId =
+    document.querySelector("#ship-combat-exposed-system")?.value || null;
+
+  const exposed =
+    exposedId ? EXPOSED_SHIP_TARGET_DETAILS[exposedId] ?? null : null;
+
+  return {
+    attack: {
+      id: weapon?.id ?? null,
+      label:
+        document.querySelector("#ship-combat-weapon-label").value.trim()
+        || weapon?.label
+        || "Ship Attack",
+      weaponSize: Number(document.querySelector("#ship-combat-weapon-size").value),
+      baseSeverity: document.querySelector("#ship-combat-base-severity").value,
+      penetration: document.querySelector("#ship-combat-penetration").value,
+      hullDamageMode: profile?.hullDamageMode ?? "normal",
+      minimumShipTacSeverity: profile?.minimumShipTacSeverity ?? null,
+      preferredTacCategories: profile?.preferredTacCategories ?? [],
+      authorization: profile?.authorization ?? "normal",
+      defensiveOnly: profile?.defensiveOnly === true,
+      allowSizeZero: Number(document.querySelector("#ship-combat-weapon-size").value) === 0
+    },
+    target: {
+      id: linkedShip?.id ?? null,
+      label:
+        linkedShip?.label
+        ?? document.querySelector("#ship-combat-target-label").value.trim()
+        ?? "Target Ship",
+      classId:
+        linkedShip?.scale?.classId
+        ?? Number(document.querySelector("#ship-combat-class").value),
+      protectionRating:
+        linkedShip?.scale?.protectionRating
+        ?? Number(document.querySelector("#ship-combat-pr").value),
+      currentHull:
+        linkedShip?.scale?.currentHull
+        ?? Number(document.querySelector("#ship-combat-hull").value),
+      maximumHull:
+        linkedShip?.scale?.maximumHull
+        ?? Number(document.querySelector("#ship-combat-max-hull").value),
+      currentMegadamage:
+        linkedShip?.scale?.currentMegadamage
+        ?? Number(document.querySelector("#ship-combat-megadamage-current").value),
+      majorSection:
+        document.querySelector("#ship-combat-major-section")?.value || null,
+      districtId:
+        document.querySelector("#ship-combat-district")?.value || null
+    },
+    context: {
+      attackSource: source,
+      rangeBand: document.querySelector("#ship-combat-range").value,
+      hitQuality: document.querySelector("#ship-combat-hit-quality").value,
+      vulnerableTarget:
+        document.querySelector("#ship-combat-vulnerable").checked,
+      vulnerabilityState:
+        document.querySelector("#ship-combat-vulnerability-state")?.value || null,
+      applyVulnerabilityShift:
+        document.querySelector("#ship-combat-vulnerability-shift")?.checked === true,
+      exposedSystem: exposedId,
+      preferredTacCategory:
+        exposed?.preferredTacCategory
+        ?? profile?.preferredTacCategories?.[0]
+        ?? null,
+      preferredTacLocation:
+        exposed?.preferredTacLocation ?? null,
+      megadamageAdvance:
+        Number(document.querySelector("#ship-combat-megadamage-advance").value || 0)
+    }
+  };
+}
+
+function handleShipCombatSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const linkedShip = getLinkedShipCombatEntity();
+    const shipCombat = resolveShipCombat(
+      collectShipCombatInput(linkedShip)
+    );
+
+    const result = createConsoleResult({
+      resolverId: "ship_combat",
+      label:
+        document.querySelector("#ship-combat-weapon-label").value.trim()
+        || "Ship Combat",
+      status:
+        shipCombat.finalSeverity === "catastrophic"
+          ? "failure"
+          : shipCombat.finalSeverity === "no_effect"
+            ? "blocked"
+            : "resolved",
+      summary:
+        shipCombat.finalSeverity
+          ? `${formatAppIdentifier(shipCombat.finalSeverity)} — ${shipCombat.effect?.hullLoss ?? 0} Hull`
+          : shipCombat.outcome,
+      ruling:
+        shipCombat.effect?.targetChoice
+          ? "Target chooses 1 Hull loss or Minor Ship TAC."
+          : shipCombat.handoffs?.shipTac
+            ? `Resolve ${formatAppIdentifier(shipCombat.handoffs.shipTac.severity)} Ship TAC.`
+            : "Apply the displayed ship-scale result.",
+      metadata: {
+        shipCombat,
+        linkedShipId: linkedShip?.id ?? null,
+        applied: false
+      }
+    });
+
+    addRecentResult(result);
+    appState.activeResultId = result.id;
+    renderActiveResult();
+    renderRecentResults();
+    persistSessionState();
+  } catch (error) {
+    addResolverExceptionResult("ship_combat", "Ship Combat Error", error);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ship TAC                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function bindShipTacEvents() {
+  const form = document.querySelector("#ship-tac-form");
+  if (!form) return;
+
+  form.addEventListener("submit", handleShipTacSubmit);
+  form.addEventListener("change", handleShipTacChange);
+  form.addEventListener("reset", () => {
+    window.setTimeout(updateShipTacFields, 0);
+  });
+}
+
+function handleShipTacChange(event) {
+  if (
+    event.target.id === "ship-tac-entity-id"
+    || event.target.id === "ship-tac-category-mode"
+    || event.target.id === "ship-tac-category"
+    || event.target.id === "ship-tac-location-mode"
+  ) {
+    updateShipTacFields();
+  }
+}
+
+function updateShipTacLocationOptions() {
+  const categoryId =
+    document.querySelector("#ship-tac-category")?.value
+    || "sensors_fire_control";
+
+  const select = document.querySelector("#ship-tac-location");
+  if (!select) return;
+
+  select.innerHTML =
+    getShipTacLocationsForCategory(categoryId)
+      .map((entry) => `
+        <option value="${escapeHtml(entry.id)}">
+          ${escapeHtml(entry.label)}
+        </option>
+      `)
+      .join("");
+}
+
+function updateShipTacFields() {
+  const linked = getLinkedShipTacEntity();
+
+  const classInput = document.querySelector("#ship-tac-class");
+  const severeInput = document.querySelector("#ship-tac-unresolved-severe");
+
+  if (linked) {
+    classInput.value = linked.scale.classId;
+    classInput.disabled = true;
+    severeInput.value = countUnresolvedSevereShipTac(linked);
+    severeInput.disabled = true;
+  } else {
+    classInput.disabled = false;
+    severeInput.disabled = false;
+  }
+
+  const categoryMode =
+    document.querySelector("#ship-tac-category-mode")?.value ?? "random";
+
+  const locationMode =
+    document.querySelector("#ship-tac-location-mode")?.value ?? "random";
+
+  toggleField(
+    "#ship-tac-category-field",
+    categoryMode !== "random"
+  );
+
+  toggleField(
+    "#ship-tac-location-field",
+    locationMode !== "random"
+  );
+
+  updateShipTacLocationOptions();
+
+  if (linked && categoryMode !== "random") {
+    const categoryId = document.querySelector("#ship-tac-category").value;
+    const condition =
+      linked.systems?.[categoryId]?.condition
+      ?? "operational";
+
+    document.querySelector("#ship-tac-existing-condition").value =
+      condition;
+  }
+}
+
+function getLinkedShipTacEntity() {
+  const id = document.querySelector("#ship-tac-entity-id")?.value ?? "";
+  return id ? getShipEntity(appState.shipEntities, id) : null;
+}
+
+function collectShipTacInput(linkedShip) {
+  const categoryMode =
+    document.querySelector("#ship-tac-category-mode").value;
+
+  const locationMode =
+    document.querySelector("#ship-tac-location-mode").value;
+
+  const categoryId =
+    categoryMode === "random"
+      ? null
+      : document.querySelector("#ship-tac-category").value;
+
+  const linkedCondition =
+    linkedShip && categoryId
+      ? linkedShip.systems?.[categoryId]?.condition
+      : null;
+
+  return {
+    severity: document.querySelector("#ship-tac-severity").value,
+    classId:
+      linkedShip?.scale?.classId
+      ?? Number(document.querySelector("#ship-tac-class").value),
+    existingCondition:
+      linkedCondition
+      ?? document.querySelector("#ship-tac-existing-condition").value,
+    unresolvedSevereOrBroken:
+      linkedShip
+        ? countUnresolvedSevereShipTac(linkedShip)
+        : Number(document.querySelector("#ship-tac-unresolved-severe").value),
+    categoryMode,
+    preferredCategory: categoryId,
+    locationMode,
+    preferredLocation:
+      locationMode === "random"
+        ? null
+        : document.querySelector("#ship-tac-location").value,
+    forcedCategoryRoll:
+      document.querySelector("#ship-tac-category-roll").value === ""
+        ? null
+        : Number(document.querySelector("#ship-tac-category-roll").value),
+    forcedLocationRoll:
+      document.querySelector("#ship-tac-location-roll").value === ""
+        ? null
+        : Number(document.querySelector("#ship-tac-location-roll").value),
+    forcedOutcomeRoll:
+      document.querySelector("#ship-tac-outcome-roll").value === ""
+        ? null
+        : Number(document.querySelector("#ship-tac-outcome-roll").value)
+  };
+}
+
+function handleShipTacSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const linkedShip = getLinkedShipTacEntity();
+    const shipTac = resolveShipTac(
+      collectShipTacInput(linkedShip)
+    );
+
+    const result = createConsoleResult({
+      resolverId: "ship_tac",
+      label:
+        document.querySelector("#ship-tac-label").value.trim()
+        || shipTac.outcome?.label
+        || "Ship TAC",
+      status:
+        shipTac.severity === "broken"
+          ? "failure"
+          : "resolved",
+      summary:
+        shipTac.redirected
+          ? "Redirect destroyed-system hit."
+          : `${shipTac.outcome.label} — ${formatAppIdentifier(shipTac.subsystem.nextCondition)}`,
+      ruling:
+        shipTac.redirected
+          ? shipTac.ruling
+          : shipTac.outcome.effectText,
+      metadata: {
+        shipTac,
+        linkedShipId: linkedShip?.id ?? null,
+        applied: false
+      }
+    });
+
+    addRecentResult(result);
+    appState.activeResultId = result.id;
+    renderActiveResult();
+    renderRecentResults();
+    persistSessionState();
+  } catch (error) {
+    addResolverExceptionResult("ship_tac", "Ship TAC Error", error);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ship Entities                                                              */
+/* -------------------------------------------------------------------------- */
+
+function bindShipEntityToolEvents() {
+  const form = document.querySelector("#ship-entity-form");
+  if (!form) return;
+
+  form.addEventListener("submit", handleShipEntitySubmit);
+
+  const templateButton = form.querySelector("[data-apply-ship-template]");
+  templateButton?.addEventListener("click", handleApplyShipEntityTemplate);
+
+  form.addEventListener("reset", () => {
+    window.setTimeout(() => {
+      appState.editingShipEntityId = null;
+      renderActiveTool();
+    }, 0);
+  });
+}
+
+function handleApplyShipEntityTemplate() {
+  const templateId = document.querySelector("#ship-entity-template")?.value ?? "";
+  const template = getShipEntityTemplate(templateId);
+  if (!template) return;
+
+  const existingId = document.querySelector("#ship-entity-id")?.value || null;
+  const draft = createShipEntityFromTemplate(templateId, {
+    id: existingId,
+    label: template.label,
+  });
+
+  appState.editingShipEntityId = null;
+  const form = document.querySelector("#ship-entity-form");
+  form.querySelector("#ship-entity-label").value = draft.label;
+  form.querySelector("#ship-entity-model").value = draft.identity.makeModel;
+  form.querySelector("#ship-entity-class").value = draft.scale.classId;
+  form.querySelector("#ship-entity-pr").value = draft.scale.protectionRating;
+  form.querySelector("#ship-entity-current-hull").value = draft.scale.currentHull;
+  form.querySelector("#ship-entity-maximum-hull").value = draft.scale.maximumHull;
+  form.querySelector("#ship-entity-megadamage").value = draft.scale.currentMegadamage;
+  form.querySelector("#ship-entity-hardpoints").value = draft.scale.hardpoints;
+  form.querySelector("#ship-entity-weapon-size").value = draft.scale.weaponSizeLimit;
+  form.querySelector("#ship-entity-thrusters").value = draft.stats.thrusters;
+  form.querySelector("#ship-entity-battle").value = draft.stats.battle;
+  form.querySelector("#ship-entity-systems").value = draft.stats.systems;
+  form.dataset.templateId = templateId;
+}
+
+function handleShipEntitySubmit(event) {
+  event.preventDefault();
+
+  const id = document.querySelector("#ship-entity-id").value || null;
+  const existing = id ? getShipEntity(appState.shipEntities, id) : null;
+
+  const next = createShipEntity({
+    id,
+    createdAt: existing?.createdAt,
+    label: document.querySelector("#ship-entity-label").value.trim(),
+    identity: {
+      registry: document.querySelector("#ship-entity-registry").value.trim(),
+      makeModel: document.querySelector("#ship-entity-model").value.trim(),
+      templateId: document.querySelector("#ship-entity-form").dataset.templateId || existing?.identity?.templateId || null,
+      family: existing?.identity?.family,
+      ownership: existing?.identity?.ownership,
+      role: existing?.identity?.role,
+      baseChassis: existing?.identity?.baseChassis,
+      identityLine: existing?.identity?.identityLine,
+      sourceType: existing?.identity?.sourceType,
+    },
+    stats: {
+      thrusters: Number(document.querySelector("#ship-entity-thrusters").value),
+      battle: Number(document.querySelector("#ship-entity-battle").value),
+      systems: Number(document.querySelector("#ship-entity-systems").value),
+    },
+    scale: {
+      classId: Number(document.querySelector("#ship-entity-class").value),
+      protectionRating: Number(document.querySelector("#ship-entity-pr").value),
+      currentHull: Number(document.querySelector("#ship-entity-current-hull").value),
+      maximumHull: Number(document.querySelector("#ship-entity-maximum-hull").value),
+      currentMegadamage: Number(document.querySelector("#ship-entity-megadamage").value),
+      weaponSizeLimit: Number(document.querySelector("#ship-entity-weapon-size").value),
+      hardpoints: Number(document.querySelector("#ship-entity-hardpoints").value),
+    },
+    systems: existing?.systems,
+    activeTac: existing?.activeTac,
+    activeHazards: existing?.activeHazards,
+    loadout: existing?.loadout,
+    operations: existing?.operations,
+    tags: existing?.tags,
+    notes: document.querySelector("#ship-entity-notes").value.trim()
+  });
+
+  appState.shipEntities = existing
+    ? replaceShipEntity(appState.shipEntities, next)
+    : [...appState.shipEntities, next];
+
+  appState.selectedShipEntityId = next.id;
+  appState.editingShipEntityId = next.id;
+
+  renderShipEntityViews();
+  persistSessionState();
+}
+
+function handleShipEntityAction(event) {
+  const control = event.target.closest("[data-ship-action]");
+  if (!control) return;
+
+  const action = control.dataset.shipAction;
+  const shipId = control.dataset.shipId;
+  const ship = getShipEntity(appState.shipEntities, shipId);
+  if (!ship) return;
+
+  switch (action) {
+    case "select":
+      appState.selectedShipEntityId = shipId;
+      appState.editingShipEntityId = shipId;
+      if (appState.activeTool === "ship_entities") {
+        renderActiveTool();
+      }
+      renderShipEntitySessionBoard();
+      persistSessionState();
+      break;
+
+    case "load-combat":
+      appState.selectedShipEntityId = shipId;
+      appState.activeTool = "ship_combat";
+      renderToolNavigation();
+      renderActiveTool();
+      renderShipEntitySessionBoard();
+      persistSessionState();
+      break;
+
+    case "load-tac":
+      appState.selectedShipEntityId = shipId;
+      appState.activeTool = "ship_tac";
+      renderToolNavigation();
+      renderActiveTool();
+      renderShipEntitySessionBoard();
+      persistSessionState();
+      break;
+
+    case "duplicate": {
+      const copy = duplicateShipEntity(ship);
+      appState.shipEntities = [...appState.shipEntities, copy];
+      appState.selectedShipEntityId = copy.id;
+      appState.editingShipEntityId = copy.id;
+      renderShipEntityViews();
+      persistSessionState();
+      break;
+    }
+
+    case "delete":
+      if (!window.confirm(`Delete ${ship.label}?`)) return;
+      appState.shipEntities = removeShipEntity(appState.shipEntities, shipId);
+      appState.selectedShipEntityId = appState.shipEntities[0]?.id ?? null;
+      appState.editingShipEntityId = null;
+      renderShipEntityViews();
+      persistSessionState();
+      break;
+
+    default:
+      break;
+  }
+}
+
+function getEditingShipEntity() {
+  if (!appState.editingShipEntityId) return null;
+  return getShipEntity(
+    appState.shipEntities,
+    appState.editingShipEntityId
+  );
+}
+
+function renderShipEntityViews() {
+  if (appState.activeTool === "ship_entities") {
+    renderActiveTool();
+  }
+
+  renderShipEntitySessionBoard();
+}
+
+function renderShipEntitySessionBoard() {
+  if (!elements.shipEntitySummary) return;
+
+  elements.shipEntitySummary.innerHTML =
+    renderShipEntityBoard(
+      appState.shipEntities,
+      appState.selectedShipEntityId
+    );
+}
+
+function handleShipResultAction(event) {
+  const combatButton =
+    event.target.closest("[data-apply-ship-combat]");
+
+  if (combatButton) {
+    applyActiveShipCombatResult(
+      combatButton.dataset.applyShipCombat
+    );
+    return;
+  }
+
+  const tacButton =
+    event.target.closest("[data-apply-ship-tac]");
+
+  if (tacButton) {
+    applyActiveShipTacResult(
+      tacButton.dataset.applyShipTac
+    );
+  }
+}
+
+function applyActiveShipCombatResult(resultId) {
+  const result = appState.recentResults.find(
+    (entry) => entry.id === resultId
+  );
+
+  const shipId = result?.metadata?.linkedShipId;
+  const ship = getShipEntity(appState.shipEntities, shipId);
+
+  if (!result || !ship || result.metadata.applied) {
+    return;
+  }
+
+  const choice =
+    document.querySelector("[data-ship-combat-choice]")?.value
+    ?? "hull";
+
+  const updated = applyShipCombatResult(
+    ship,
+    result.metadata.shipCombat,
+    choice
+  );
+
+  appState.shipEntities =
+    replaceShipEntity(appState.shipEntities, updated);
+
+  result.metadata.applied = true;
+  result.metadata.appliedChoice = choice;
+
+  renderActiveResult();
+  renderRecentResults();
+  renderShipEntitySessionBoard();
+  persistSessionState();
+}
+
+function applyActiveShipTacResult(resultId) {
+  const result = appState.recentResults.find(
+    (entry) => entry.id === resultId
+  );
+
+  const shipId = result?.metadata?.linkedShipId;
+  const ship = getShipEntity(appState.shipEntities, shipId);
+
+  if (!result || !ship || result.metadata.applied) {
+    return;
+  }
+
+  const updated = applyShipTacResult(
+    ship,
+    result.metadata.shipTac
+  );
+
+  appState.shipEntities =
+    replaceShipEntity(appState.shipEntities, updated);
+
+  result.metadata.applied = true;
+
+  renderActiveResult();
+  renderRecentResults();
+  renderShipEntitySessionBoard();
+  persistSessionState();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -4492,6 +5363,10 @@ function persistSessionState() {
       hazardTrackers: appState.hazardTrackers,
       selectedHazardTrackerId:
         appState.selectedHazardTrackerId,
+      shipEntities: appState.shipEntities,
+      selectedShipEntityId:
+        appState.selectedShipEntityId,
+      storageSchemaVersion: 2,
       preferences: {
         sessionTrayExpanded:
           appState.preferences.sessionTrayExpanded
@@ -4571,6 +5446,18 @@ function restoreSessionState() {
     ) {
       appState.selectedHazardTrackerId =
         stored.selectedHazardTrackerId;
+    }
+
+    if (Array.isArray(stored.shipEntities)) {
+      appState.shipEntities = stored.shipEntities;
+    }
+
+    if (
+      typeof stored.selectedShipEntityId === "string"
+      || stored.selectedShipEntityId === null
+    ) {
+      appState.selectedShipEntityId =
+        stored.selectedShipEntityId;
     }
 
     if (

@@ -36,3 +36,27 @@ export function getShipClass(classId) {
 export function isEnvironmentScaleShip(classId) {
   return getShipClass(classId).damageModel === SHIP_DAMAGE_MODELS.district_environment;
 }
+
+
+export const STANDARD_MINIMUM_SHIP_WEAPON_SIZE = 1;
+export const SPECIAL_MINIMUM_SHIP_WEAPON_SIZE = 0;
+
+export function getShipDamageModel(classId) {
+  return getShipClass(classId).damageModel;
+}
+
+export function usesPooledHull(classId) {
+  return ["pooled_hull", "pooled_hull_sections"].includes(
+    getShipDamageModel(classId)
+  );
+}
+
+export function requiresMajorSection(classId) {
+  return ["pooled_hull_sections", "sectional_capital"].includes(
+    getShipDamageModel(classId)
+  );
+}
+
+export function usesDistrictIntegrity(classId) {
+  return getShipDamageModel(classId) === SHIP_DAMAGE_MODELS.district_environment;
+}

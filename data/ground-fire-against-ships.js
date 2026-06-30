@@ -18,3 +18,25 @@ export const EXPOSED_SHIP_TARGETS = Object.freeze([
   "crew","sensors","open_bays","landing_gear","thrusters","radiators",
   "external_weapons","ramps","cargo","already_damaged_sections",
 ]);
+
+
+export const GROUND_TO_SHIP_DEFAULT_SIZE = Object.freeze({
+  infantry_small_arms: 0,
+  infantry_siege: 1,
+  vehicle_weapons: 2,
+  heavy_vehicle_weapons: 3,
+  super_heavy_ground: 4,
+});
+
+export const EXPOSED_SHIP_TARGET_DETAILS = Object.freeze({
+  crew: { preferredTacCategory: "crew_habitation", preferredTacLocation: "crew_station" },
+  sensors: { preferredTacCategory: "sensors_fire_control", preferredTacLocation: "sensors_targeting" },
+  open_bays: { preferredTacCategory: "cargo_mission_asset", preferredTacLocation: "hangar" },
+  landing_gear: { preferredTacCategory: "mobility_thrusters", preferredTacLocation: "landing_docking" },
+  thrusters: { preferredTacCategory: "mobility_thrusters", preferredTacLocation: "maneuvering_thrusters" },
+  radiators: { preferredTacCategory: "power_systems", preferredTacLocation: "cooling" },
+  external_weapons: { preferredTacCategory: "weapons", preferredTacLocation: "weapon_mount" },
+  ramps: { preferredTacCategory: "armor_structure", preferredTacLocation: "bulkhead_compartment" },
+  cargo: { preferredTacCategory: "cargo_mission_asset", preferredTacLocation: "cargo_bay" },
+  already_damaged_sections: { preferredTacCategory: null, preferredTacLocation: null },
+});

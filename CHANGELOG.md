@@ -65,3 +65,36 @@
 - Electronic-warfare and drone mission-effect presets
 - Strategic S.H.M.A.C. weapon presets
 - Plasma-Thermal Cutter Blade preset
+
+
+Added
+Added Ship Entity chassis-template selection.
+Added 50 calibrated Class 0–V templates.
+Added grouped template families:
+Shipbreaker references
+independent
+commercial
+corporate
+government and naval
+strategic civilian
+Added template metadata for role, ownership, source status, crew scale, damage-control bias, escape capacity, and disablement behavior.
+Added automatic population of Hull, PR, Stats, hardpoints, Weapon Size, and default weapon information.
+Preserved manual editing after template selection.
+Changed
+Reframed Shipbreaker chassis as role and stat references rather than direct durability baselines.
+Expanded ship combat toward sustained dogfight and naval-exchange pacing.
+Separated structural endurance through Hull from defensive resistance through Protection Rating.
+Standardized Class 0–V Hull, PR, hardpoint, and Weapon Size calibration bands.
+Defined Hull 0 as disablement rather than automatic destruction.
+Established Classes VI–VIII as sectional, district, and civic-crisis scales.
+Fixed
+Corrected Solid ship-combat results to apply 1 Hull and Minor Ship TAC.
+Confirmed Breaching as 1 Hull plus Moderate Ship TAC.
+Confirmed Catastrophic as at least 2 Hull plus Severe Ship TAC, with Megadamage when applicable.
+Deferred
+Class VI sectional entity interface.
+Class VII district-scale mobile-station interface.
+Class VIII civic and strategic continuity interface.
+Ship and station generation builder tab.
+Chassis-plus-identity overlay workflow.
+Automatic export from builders into active Ship Entities.
