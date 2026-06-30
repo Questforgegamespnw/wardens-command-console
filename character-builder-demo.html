@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Character Builder Shell</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles/character-builder.css">
+</head>
+<body>
+  <main class="workspace" style="padding: 1rem;">
+    <div id="character-builder-root"></div>
+  </main>
+
+  <script type="module">
+    import { mountCharacterBuilder } from "./builders/character-builder-shell.js";
+    mountCharacterBuilder(document.querySelector("#character-builder-root"));
+  </script>
+</body>
+</html>

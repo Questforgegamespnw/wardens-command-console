@@ -7,6 +7,21 @@ import {
 } from "./modules/contest.js";
 
 import {
+  createMultiStepChallenge,
+  applyChallengeAttempt,
+  expandChallengeScope,
+  getMultiStepChallenge,
+  replaceMultiStepChallenge,
+  removeMultiStepChallenge
+} from "./modules/multi-step-challenges.js";
+
+import {
+  renderMultiStepChallengesTool,
+  renderMultiStepChallengeBoard,
+  renderMultiStepChallengeResult
+} from "./renderers/multi-step-challenges-renderer.js";
+
+import {
   createQuickEntity,
   createEntityFromTemplate,
   updateQuickEntity,
@@ -211,6 +226,9 @@ const appState = {
   selectedShipEntityId: null,
   editingShipEntityId: null,
 
+  multiStepChallenges: [],
+  selectedChallengeId: null,
+
   preferences: {
     sessionTrayExpanded: true,
     mobileNavOpen: false,
@@ -238,6 +256,18 @@ const tools = {
     render: () =>
       renderContestForm({
         skills: getActiveSkillPresets()
+      })
+  },
+
+  multi_step_challenges: {
+    id: "multi_step_challenges",
+    label: "Multi-Step Challenges",
+    category: "session",
+    status: "active",
+    render: () =>
+      renderMultiStepChallengesTool({
+        challenges: appState.multiStepChallenges,
+        selectedChallenge: getSelectedMultiStepChallenge()
       })
   },
 
@@ -368,6 +398,7 @@ const tools = {
 const resultRenderers = {
   standard_test: renderStandardTestResult,
   contest: renderContestResult,
+  multi_step_challenges: renderMultiStepChallengeResult,
   damage: renderDamageResult,
   calm: renderCalmResult,
   wounds: renderWoundResult,
@@ -408,6 +439,7 @@ function initializeApp() {
   renderRecentResults();
   renderQuickEntitySessionBoard();
   renderShipEntitySessionBoard();
+  renderMultiStepChallengeSessionBoard();
   renderHazardSessionBoard();
   renderSessionTrayState();
 }
@@ -430,6 +462,8 @@ function cacheElements() {
     document.querySelector("#quick-entity-summary");
   elements.shipEntitySummary =
     document.querySelector("#ship-entity-summary");
+  elements.challengeSummary =
+    document.querySelector("#multi-step-challenge-summary");
   elements.hazardSummary =
     document.querySelector("#hazard-summary");
   elements.mobileOverlay =
@@ -466,6 +500,11 @@ function bindShellEvents() {
   document.addEventListener(
     "click",
     handleShipEntityAction
+  );
+
+  document.addEventListener(
+    "click",
+    handleMultiStepChallengeAction
   );
 
   document.addEventListener(
@@ -683,6 +722,11 @@ function bindActiveToolEvents(toolId) {
     case "ship_tac":
       bindShipTacEvents();
       updateShipTacFields();
+      break;
+
+    case "multi_step_challenges":
+      bindMultiStepChallengeEvents();
+      updateChallengeLengthField();
       break;
 
     case "hazards":
@@ -1322,6 +1366,283 @@ function collectContestModifiers(sideId) {
       value
     };
   });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Multi-Step Challenges                                                      */
+/* -------------------------------------------------------------------------- */
+
+function bindMultiStepChallengeEvents() {
+  document
+    .querySelector("#multi-step-challenge-form")
+    ?.addEventListener("submit", handleMultiStepChallengeSubmit);
+
+  document
+    .querySelector("#challenge-length")
+    ?.addEventListener("change", updateChallengeLengthField);
+
+  document
+    .querySelector("#challenge-attempt-form")
+    ?.addEventListener("submit", handleMultiStepChallengeAttempt);
+
+  document
+    .querySelector("#challenge-scope-form")
+    ?.addEventListener("submit", handleMultiStepChallengeExpansion);
+}
+
+function updateChallengeLengthField() {
+  const length = document.querySelector("#challenge-length")?.value;
+  const field = document.querySelector("#challenge-custom-target-field");
+  if (!field) return;
+  field.hidden = length !== "custom";
+  field.querySelectorAll("input").forEach((input) => {
+    input.disabled = length !== "custom";
+  });
+}
+
+function handleMultiStepChallengeSubmit(event) {
+  event.preventDefault();
+
+  try {
+    const id = document.querySelector("#challenge-id")?.value || null;
+    const existing = id
+      ? getMultiStepChallenge(appState.multiStepChallenges, id)
+      : null;
+    const length = document.querySelector("#challenge-length").value;
+
+    const challenge = createMultiStepChallenge({
+      id,
+      createdAt: existing?.createdAt,
+      label: document.querySelector("#challenge-label").value,
+      length,
+      targetProgress:
+        length === "custom"
+          ? Number(document.querySelector("#challenge-target").value)
+          : undefined,
+      currentProgress: existing?.currentProgress ?? 0,
+      status: existing?.status ?? "active",
+      stakes: document.querySelector("#challenge-stakes").value,
+      completionOutcome: document.querySelector("#challenge-outcome").value,
+      defaultTest: existing?.defaultTest ?? null,
+      attemptCount: existing?.attemptCount ?? 0,
+      history: existing?.history ?? [],
+      linkedEntityId: existing?.linkedEntityId ?? null,
+      linkedShipEntityId: existing?.linkedShipEntityId ?? null,
+      notes: document.querySelector("#challenge-notes").value,
+    });
+
+    appState.multiStepChallenges = existing
+      ? replaceMultiStepChallenge(appState.multiStepChallenges, challenge)
+      : [...appState.multiStepChallenges, challenge];
+    appState.selectedChallengeId = challenge.id;
+
+    renderMultiStepChallengeViews();
+    persistSessionState();
+  } catch (error) {
+    addResolverExceptionResult(
+      "multi_step_challenges",
+      "Challenge Error",
+      error
+    );
+  }
+}
+
+function handleMultiStepChallengeAttempt(event) {
+  event.preventDefault();
+
+  const challenge = getSelectedMultiStepChallenge();
+  if (!challenge) return;
+
+  try {
+    const manualValue = document.querySelector("#challenge-manual-roll").value;
+    const skillLabel = document.querySelector("#challenge-skill-label").value.trim();
+    const skillValue = Number(document.querySelector("#challenge-skill-value").value || 0);
+
+    const testResult = resolveStandardTest({
+      resolverId: "standard_test",
+      testType: "action",
+      label: document.querySelector("#challenge-attempt-label").value.trim(),
+      base: {
+        label: document.querySelector("#challenge-base-label").value.trim() || "Stat",
+        value: Number(document.querySelector("#challenge-base-value").value),
+      },
+      skill:
+        skillLabel || skillValue !== 0
+          ? { label: skillLabel || "Skill", value: skillValue }
+          : null,
+      modifiers: [],
+      rollMode: document.querySelector("#challenge-roll-mode").value,
+      manualRoll: manualValue === "" ? null : Number(manualValue),
+      notes: document.querySelector("#challenge-approach").value.trim(),
+    });
+
+    if (testResult.status === "error") {
+      addRecentResult(testResult);
+      appState.activeResultId = testResult.id;
+      renderActiveResult();
+      renderRecentResults();
+      return;
+    }
+
+    const override = document.querySelector("#challenge-progress-override").value;
+    const consequence = document.querySelector("#challenge-consequence").value.trim();
+    const updated = applyChallengeAttempt(
+      challenge,
+      testResult,
+      {
+        progressAdded: override === "" ? undefined : Number(override),
+        actorLabel: document.querySelector("#challenge-actor").value.trim(),
+        approach: document.querySelector("#challenge-approach").value.trim(),
+        consequence,
+      }
+    );
+
+    appState.multiStepChallenges = replaceMultiStepChallenge(
+      appState.multiStepChallenges,
+      updated
+    );
+
+    const attempt = updated.history.at(-1);
+    const result = createConsoleResult({
+      resolverId: "multi_step_challenges",
+      label: challenge.label,
+      status: updated.status === "completed" ? "completed" : testResult.status,
+      summary:
+        updated.status === "completed"
+          ? `${challenge.label} is complete.`
+          : `${attempt.progressAdded} progress added to ${challenge.label}.`,
+      ruling:
+        consequence ||
+        (testResult.status === "failure"
+          ? "The challenge advances more slowly. Add a fitting consequence when the fiction requires one."
+          : "Apply the progress and continue the challenge if it remains incomplete."),
+      metadata: {
+        challengeAttempt: {
+          challengeId: challenge.id,
+          standardTestResult: testResult,
+          degree: testResult.degree,
+          degreeLabel: testResult.metadata?.degreeLabel ?? formatAppIdentifier(testResult.degree),
+          selectedRoll: testResult.roll?.selected?.total ?? null,
+          finalTarget: testResult.metadata?.finalTarget ?? null,
+          margin: testResult.metadata?.margin ?? null,
+          progressAdded: attempt.progressAdded,
+          progressBefore: attempt.progressBefore,
+          progressAfter: attempt.progressAfter,
+          targetProgress: updated.targetProgress,
+          consequence,
+        }
+      }
+    });
+
+    addRecentResult(result);
+    appState.activeResultId = result.id;
+    renderActiveResult();
+    renderRecentResults();
+    renderMultiStepChallengeViews();
+    persistSessionState();
+  } catch (error) {
+    addResolverExceptionResult(
+      "multi_step_challenges",
+      "Challenge Attempt Error",
+      error
+    );
+  }
+}
+
+function handleMultiStepChallengeExpansion(event) {
+  event.preventDefault();
+  const challenge = getSelectedMultiStepChallenge();
+  if (!challenge) return;
+
+  try {
+    const updated = expandChallengeScope(challenge, {
+      targetProgress: Number(
+        document.querySelector("#challenge-expanded-target").value
+      ),
+      reason: document.querySelector("#challenge-expansion-reason").value,
+    });
+
+    appState.multiStepChallenges = replaceMultiStepChallenge(
+      appState.multiStepChallenges,
+      updated
+    );
+    renderMultiStepChallengeViews();
+    persistSessionState();
+  } catch (error) {
+    addResolverExceptionResult(
+      "multi_step_challenges",
+      "Challenge Expansion Error",
+      error
+    );
+  }
+}
+
+function handleMultiStepChallengeAction(event) {
+  const control = event.target.closest("[data-challenge-action]");
+  if (!control) return;
+
+  const action = control.dataset.challengeAction;
+  const challengeId = control.dataset.challengeId ?? null;
+
+  if (action === "new") {
+    appState.selectedChallengeId = null;
+    appState.activeTool = "multi_step_challenges";
+    renderToolNavigation();
+    renderActiveTool();
+    return;
+  }
+
+  const challenge = getMultiStepChallenge(
+    appState.multiStepChallenges,
+    challengeId
+  );
+  if (!challenge) return;
+
+  if (action === "select") {
+    appState.selectedChallengeId = challengeId;
+    appState.activeTool = "multi_step_challenges";
+    renderToolNavigation();
+    renderActiveTool();
+    renderMultiStepChallengeSessionBoard();
+    persistSessionState();
+    return;
+  }
+
+  if (action === "delete") {
+    if (!window.confirm(`Delete ${challenge.label}?`)) return;
+    appState.multiStepChallenges = removeMultiStepChallenge(
+      appState.multiStepChallenges,
+      challengeId
+    );
+    appState.selectedChallengeId =
+      appState.multiStepChallenges[0]?.id ?? null;
+    renderMultiStepChallengeViews();
+    persistSessionState();
+  }
+}
+
+function getSelectedMultiStepChallenge() {
+  return appState.selectedChallengeId
+    ? getMultiStepChallenge(
+        appState.multiStepChallenges,
+        appState.selectedChallengeId
+      )
+    : null;
+}
+
+function renderMultiStepChallengeViews() {
+  if (appState.activeTool === "multi_step_challenges") {
+    renderActiveTool();
+  }
+  renderMultiStepChallengeSessionBoard();
+}
+
+function renderMultiStepChallengeSessionBoard() {
+  if (!elements.challengeSummary) return;
+  elements.challengeSummary.innerHTML = renderMultiStepChallengeBoard(
+    appState.multiStepChallenges,
+    appState.selectedChallengeId
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -5366,7 +5687,9 @@ function persistSessionState() {
       shipEntities: appState.shipEntities,
       selectedShipEntityId:
         appState.selectedShipEntityId,
-      storageSchemaVersion: 2,
+      multiStepChallenges: appState.multiStepChallenges,
+      selectedChallengeId: appState.selectedChallengeId,
+      storageSchemaVersion: 3,
       preferences: {
         sessionTrayExpanded:
           appState.preferences.sessionTrayExpanded
@@ -5458,6 +5781,17 @@ function restoreSessionState() {
     ) {
       appState.selectedShipEntityId =
         stored.selectedShipEntityId;
+    }
+
+    if (Array.isArray(stored.multiStepChallenges)) {
+      appState.multiStepChallenges = stored.multiStepChallenges;
+    }
+
+    if (
+      typeof stored.selectedChallengeId === "string"
+      || stored.selectedChallengeId === null
+    ) {
+      appState.selectedChallengeId = stored.selectedChallengeId;
     }
 
     if (

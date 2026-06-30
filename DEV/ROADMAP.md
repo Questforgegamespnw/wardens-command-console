@@ -597,4 +597,227 @@ Ship Combat
 Future plans to include a new tab in the warden console to allow for quickly assembling ships, stations, large vessels, and terrestrial establishments
 
 - important to note that we should ensure that there is at least a similar output for the data structure used by the resolver and session tools so they can be used in the resolver tools. 
-- 
+
+
+Recommended next milestone: Character Builder Foundation Pack
+
+I would make the next package contain five concrete files.
+
+1. character-record-schema.js
+
+Define the canonical character record and defaults.
+
+This should lock:
+
+identity
+Origin / Background / Career / Specialty
+Stats and Saves
+skills and doctrines
+Health
+Wound capacity
+Wound records
+ailments
+Calm and Resolve
+armor
+inventory
+weapons and loadout cards
+cybermods
+debts
+faction Notice
+hidden Warden data
+
+This is the most important next file because every renderer, import, export, print layout, and player tracker will depend on it.
+
+2. character-builder-options.js
+
+Create normalized registries for:
+
+Human and Android Origins
+current Backgrounds
+current Careers
+Agent as advanced Career
+placeholder/manual Specialty support
+creation modes: Quick Build and Campaign Build
+
+Do not wait for every Specialty to be authored. Support:
+
+Choose defined Specialty
+or
+Create Custom Specialty
+
+That keeps the project moving without pretending the Specialty library is finished.
+
+3. character-build-rules.js
+
+Put all derived values and validation in one place.
+
+Examples:
+
+maximum Wounds from Strength
+remaining Wounds
+cyberware slots from Strength
+slickware slots from Intellect
+career Stat and Save adjustments
+duplicate skill redirection
+skill prerequisite validation
+derived doctrines
+Faction Notice posture
+overclock level
+Calm maximum modifiers
+
+This file should return facts only. No HTML and no state mutation, matching the existing resolver architecture. The console already keeps calculations in modules and presentation in renderers, so the builders should follow the same dependency discipline.
+
+4. character-record-validator.js
+
+Validate records before export.
+
+At minimum:
+
+stable required IDs
+numeric ranges
+valid skill ranks
+no duplicate installed-mod IDs
+current Health within maximum
+current Wounds within capacity
+valid linked Wound and ailment references
+valid equipment definition references
+public and hidden layers remain correctly separated
+schema version exists
+
+This is where we prevent malformed builder exports from later poisoning the player tracker.
+
+5. character-record-example.json
+
+Build one complete test character by hand.
+
+I would deliberately make it complicated enough to exercise the model:
+
+Human
+Military background
+Marine career
+Breacher specialty
+armor with Trauma Dampening
+primary and secondary weapon
+one existing Wound
+one short-term ailment
+one faction Notice entry
+one debt-funded cybermod
+one hidden corporate clause
+
+If that record feels natural rather than forced, the contract is sound.
+
+Resolve the few remaining decisions during that pass
+
+You do not need another broad research phase. You need to lock only the questions that directly affect schema behavior.
+
+Career adjustments
+
+Decide whether the old class modifiers are:
+
+exact starting Career rules
+
+or:
+
+balance references used to author new Career packages
+
+The builder contract currently treats them as calibration references, which is probably the better long-term choice.
+
+Starting Calm
+
+Lock the default starting and maximum Calm rule for newly generated characters.
+
+The current Calm resolver already treats current and maximum Calm as separate state and supports maximum changes, so the builder only needs to provide the initial values cleanly.
+
+Specialty minimum viable format
+
+Lock a simple first format:
+
+{
+  id,
+  label,
+  expertSkillChoice,
+  edge,
+  limit,
+  suggestedLoadoutId,
+  doctrineIds,
+  tags
+}
+
+That is enough for v1.
+
+Wound storage language
+
+The builder should use:
+
+health.current
+health.maximum
+woundCapacity.currentWounds
+woundCapacity.maximumWounds
+wounds[]
+
+The current runtime still uses internal names such as healthPerWound and woundsRemaining for Quick Entities. That is fine, but the permanent character record should use the cleaner terminology and rely on an adapter when creating session entities. The current Quick Entity model explicitly remains temporary and session-scoped.
+
+Then build the smallest possible UI slice
+
+Once those five files exist, implement only this vertical slice:
+
+Build workspace
+→ Character Builder
+→ Identity
+→ Origin
+→ Career
+→ Stats / Saves
+→ Skills
+→ Review JSON
+→ Download JSON
+
+Do not begin with print rendering, cybermods, faction ledgers, and weapon-card layout all at once.
+
+The goal of the first slice is to prove:
+
+UI selections
+→ valid canonical character record
+→ export
+→ re-import
+→ same record
+
+After that works, add sections in this order:
+
+Health, Wounds, Calm, Resolve, and Ailments.
+Armor, tools, weapons, and loadout cards.
+Background and Specialty.
+Cybermods, body debt, and Faction Notice.
+Printable packet renderer.
+Character-to-Quick-Entity adapter.
+Player tracker import.
+Ship Builder can follow the same pattern
+
+The Ship Builder is still a strong candidate for the first visually impressive builder because buildShipProfile() already combines class, role, and overrides.
+
+But I would first make the shared builder/export foundation character-capable. Then the ship record can use the same:
+
+schema envelope
+validation style
+import/export utilities
+workspace navigation
+review screen
+print pipeline
+One documentation correction to make now
+
+The current README and older architecture still describe the console as not being a full character-sheet manager and focus on temporary session state. That was correct for the Resolution Console, but the broader product has now expanded into a Builder Suite.
+
+Do not overwrite that boundary. Clarify it:
+
+Resolution workspace
+→ temporary session state
+
+Build workspace
+→ permanent exportable records
+
+That small documentation update will prevent future contributors from “fixing” the builder out of the project because they only read the older console boundary.
+
+So the next actionable task is:
+
+Build the Character Builder Foundation Pack: canonical schema, normalized options, derived rules, validator, and one complete example record.
+
+That turns this from a well-designed concept into something safe to code against.
