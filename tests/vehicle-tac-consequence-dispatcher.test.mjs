@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { resolveVehicleTac } from "../modules/vehicle-tac-resolver.js";
-import { collectVehicleTacPendingActions } from "../modules/vehicle-tac-consequence-dispatcher.js";
+import { collectVehicleTacPendingActions, filterUnappliedVehicleTacActions } from "../modules/vehicle-tac-consequence-dispatcher.js";
 
 function catastrophic(roll) {
   return resolveVehicleTac({ forcedSeverity: "catastrophic", forcedOutcomeRoll: roll,
@@ -41,4 +41,42 @@ test("input is unchanged and actions cannot mutate source handoffs", () => {
 });
 test("invalid result is rejected", () => {
   assert.throws(() => collectVehicleTacPendingActions({}), /Vehicle TAC/);
+});
+
+test("same TAC resolution generates stable consequence IDs on repeated collection", () => {
+  const tac = catastrophic(2);
+  const opts = { vehicleId: "tank-a", resolutionId: "tac-001", attackId: "attack-017" };
+  const first = collectVehicleTacPendingActions(tac, opts);
+  const again = collectVehicleTacPendingActions(tac, opts);
+  assert.deepEqual(first, again);
+  assert.deepEqual(first.map(a => a.id), ["tac-001:wound", "tac-001:hazard"]);
+  assert.equal(first[0].origin.attackId, "attack-017");
+});
+
+test("separate TAC events may wound the same subsystem independently", () => {
+  const tac = catastrophic(4);
+  const first = collectVehicleTacPendingActions(tac, { resolutionId: "tac-001" });
+  const second = collectVehicleTacPendingActions(tac, { resolutionId: "tac-002" });
+  assert.notEqual(first[0].id, second[0].id);
+  assert.equal(first[0].origin.subsystemId, second[0].origin.subsystemId);
+});
+
+test("cascade carries parent and attack provenance", () => {
+  const actions = collectVehicleTacPendingActions(catastrophic(9), {
+    resolutionId: "tac-002", parentResolutionId: "tac-001", attackId: "attack-017",
+  });
+  assert.equal(actions[0].origin.parentResolutionId, "tac-001");
+  assert.equal(actions[0].origin.attackId, "attack-017");
+});
+
+test("applied consequence ledger filters retries without suppressing distinct events", () => {
+  const tac = catastrophic(4);
+  const a = collectVehicleTacPendingActions(tac, { resolutionId: "tac-001" });
+  const b = collectVehicleTacPendingActions(tac, { resolutionId: "tac-002" });
+  const pending = filterUnappliedVehicleTacActions([...a, ...b], [a[0].id]);
+  assert.deepEqual(pending.map(x => x.id), [b[0].id]);
+});
+
+test("invalid event ID is rejected", () => {
+  assert.throws(() => collectVehicleTacPendingActions(catastrophic(4), { resolutionId: "" }), /resolutionId/);
 });

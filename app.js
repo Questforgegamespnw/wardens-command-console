@@ -1,3 +1,4 @@
+import { planCrossScaleAttack } from "./modules/cross-scale-router.js";
 import { collectVehicleTacPendingActions } from "./modules/vehicle-tac-consequence-dispatcher.js";
 
 import {
@@ -2050,6 +2051,18 @@ function handleDamageSubmit(event) {
   try {
     const linkedEntity = getLinkedDamageEntity();
     const input = collectDamageInput(linkedEntity);
+    // Validate personnel-to-vehicle mode; TAC consequences remain manual.
+    const crossScalePlan = input.target.type === "vehicle"
+      ? planCrossScaleAttack({
+          attackerScale: "personnel",
+          targetScale: "vehicle",
+          mode: input.mode,
+          attack: input.attack
+        })
+      : null;
+    if (crossScalePlan && !crossScalePlan.supported) {
+      throw new Error(`Unsupported cross-scale attack: ${crossScalePlan.reason}`);
+    }
     const damage = resolveDamage(input);
 
     if (linkedEntity) {
@@ -3587,6 +3600,7 @@ function handleVehicleTacSubmit(event) {
     || vehicleTac.outcome.label
   );
   
+    const resolutionId = crypto.randomUUID();
     const result = createConsoleResult({
   resolverId: "vehicle_tac",
 
@@ -3608,8 +3622,12 @@ function handleVehicleTacSubmit(event) {
     vehicleTac.outcome.effectText,
 
   metadata: {
+    resolutionId,
     vehicleTac,
-    pendingActions: collectVehicleTacPendingActions(vehicleTac, { vehicleId: targetEntity?.id ?? null }),
+    pendingActions: collectVehicleTacPendingActions(vehicleTac, {
+      vehicleId: targetEntity?.id ?? null,
+      resolutionId,
+    }),
 
     linkedEntityId:
       targetEntity?.id ?? null
