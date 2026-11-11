@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { resolveDirectVehicleSubsystem } from '../modules/direct-vehicle-subsystem.js';
+import { createQuickEntity, applyVehicleTacResultToEntity, getVehicleSubsystem } from '../modules/quick-entities.js';
+const effect = (o={}) => resolveDirectVehicleSubsystem({subsystemId:'fire_control',category:'sensors_fire_control',delivery:'electronic',severity:'moderate',...o});
+test('electronic direct effect changes subsystem without rolling TAC or Health damage',()=>{const r=effect(); assert.equal(r.healthDamage,0);assert.equal(r.outcomeRoll,null);assert.equal(r.subsystem.nextState.condition,'compromised');assert.equal(r.handoffs.wound,null);});
+test('different delivery methods share mechanical effects',()=>{for(const delivery of ['ballistic','explosive','sabotage','electronic','electromagnetic','other']) assert.equal(effect({delivery}).subsystem.nextState.condition,'compromised');});
+test('repeat direct effect escalates existing subsystem',()=>{const a=effect({severity:'light'});const b=effect({severity:'light',existingSubsystem:a.subsystem.nextState});assert.equal(b.finalSeverity,'moderate');});
+test('invalid target or delivery fails closed',()=>{assert.throws(()=>effect({subsystemId:''}),TypeError);assert.throws(()=>effect({category:'none'}),RangeError);assert.throws(()=>effect({delivery:'magic_hack'}),RangeError);});
+test('direct effect remains compatible with existing entity persistence',()=>{const entity=createQuickEntity({type:'vehicle',label:'Tank',health:{current:20,maximum:20},vehicle:{platformType:'light_vehicle'}});assert.equal(entity.type,'vehicle');const r=effect();const updated=applyVehicleTacResultToEntity(entity,r);assert.equal(getVehicleSubsystem(updated,'sensors_fire_control','fire_control').condition,'compromised');assert.deepEqual(updated.health,entity.health);});

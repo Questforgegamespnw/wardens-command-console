@@ -44,6 +44,23 @@ export function renderVehicleTacForm({
       <div class="panel__body">
         <form id="vehicle-tac-form" novalidate>
           <section class="form-section">
+            <div class="form-grid">
+              <div class="form-field"><label class="form-label" for="vehicle-tac-resolution-mode">Resolution Path</label>
+                <select id="vehicle-tac-resolution-mode" class="select"><option value="tac">Rolled Vehicle TAC</option><option value="direct">Direct subsystem effect (successful attempt)</option></select>
+              </div>
+              <div class="form-field" id="vehicle-tac-direct-delivery-field" hidden><label class="form-label" for="vehicle-tac-direct-delivery">Delivery</label>
+                <select id="vehicle-tac-direct-delivery" class="select"><option value="ballistic">Precision / ballistic</option><option value="explosive">Explosive</option><option value="sabotage">Sabotage</option><option value="electronic">Electronic intrusion</option><option value="electromagnetic">Electromagnetic</option><option value="other">Other</option></select>
+              </div>
+              <div class="form-field" id="vehicle-tac-direct-category-field" hidden><label class="form-label" for="vehicle-tac-direct-category">Target subsystem category</label>
+                <select id="vehicle-tac-direct-category" class="select">${VEHICLE_TAC_CATEGORIES.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(VEHICLE_TAC_CATEGORY_LABELS[id])}</option>`).join("")}</select>
+              </div>
+              <div class="form-field" id="vehicle-tac-direct-severity-field" hidden><label class="form-label" for="vehicle-tac-direct-severity">Effect severity</label>
+                <select id="vehicle-tac-direct-severity" class="select">${VEHICLE_TAC_SEVERITIES.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(formatIdentifier(id))}</option>`).join("")}</select>
+              </div>
+              <p class="form-help">Direct effects require a subsystem ID. The Warden resolves access and success before submitting; this does not roll an attack or remove vehicle Health.</p>
+            </div>
+          </section>
+          <section class="form-section">
             <div class="form-section__heading">
               <h3>Vehicle</h3>
             </div>

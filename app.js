@@ -1,3 +1,4 @@
+import { resolveDirectVehicleSubsystem } from "./modules/direct-vehicle-subsystem.js";
 import { planCrossScaleAttack } from "./modules/cross-scale-router.js";
 import { collectVehicleTacPendingActions } from "./modules/vehicle-tac-consequence-dispatcher.js";
 
@@ -3523,6 +3524,8 @@ function bindVehicleTacEvents() {
 
 function updateVehicleTacFields() {
   const linked = getLinkedVehicleTacEntity();
+  const direct = document.querySelector("#vehicle-tac-resolution-mode")?.value === "direct";
+  ["#vehicle-tac-direct-delivery-field", "#vehicle-tac-direct-category-field", "#vehicle-tac-direct-severity-field"].forEach(selector => setVehicleTacField(selector, !direct));
   const preferred = getCheckedValue("vehicleTacCategoryMode", "random") === "preferred";
   ["#vehicle-tac-preferred-field", "#vehicle-tac-preferred-source-field"].forEach((selector) => setVehicleTacField(selector, !preferred));
   setVehicleTacField("#vehicle-tac-category-roll-field", preferred);
@@ -3562,7 +3565,18 @@ function handleVehicleTacSubmit(event) {
     const forcedSeverity = document.querySelector("#vehicle-tac-forced-severity").value || null;
     const categoryRoll = document.querySelector("#vehicle-tac-category-roll").value;
     const outcomeRoll = document.querySelector("#vehicle-tac-outcome-roll").value;
-    const vehicleTac = resolveVehicleTac({
+    const direct = document.querySelector("#vehicle-tac-resolution-mode")?.value === "direct";
+    const directCategory = document.querySelector("#vehicle-tac-direct-category")?.value;
+    const resolvedExisting = direct && linked ? getVehicleSubsystem(linked, directCategory, subsystemId) : existingSubsystem;
+    const vehicleTac = direct ? resolveDirectVehicleSubsystem({
+      subsystemId,
+      subsystemLabel: document.querySelector("#vehicle-tac-subsystem-label").value.trim() || null,
+      category: directCategory,
+      severity: document.querySelector("#vehicle-tac-direct-severity").value,
+      delivery: document.querySelector("#vehicle-tac-direct-delivery").value,
+      platformType: linked?.vehicle?.platformType ?? document.querySelector("#vehicle-tac-platform").value,
+      existingSubsystem: resolvedExisting,
+    }) : resolveVehicleTac({
       tacCount: document.querySelector("#vehicle-tac-count").value,
       severityShift: document.querySelector("#vehicle-tac-severity-shift").value,
       forcedSeverity,

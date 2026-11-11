@@ -1,0 +1,277 @@
+--- a/data/damage-weapon-presets.js
++++ b/data/damage-weapon-presets.js
+@@ -5,6 +5,14 @@
+  * fields, track ammunition, perform attack rolls, or replace Warden judgment.
+  */
+ 
++function deepFreeze(value) {
++  if (value && typeof value === "object" && !Object.isFrozen(value)) {
++    Object.values(value).forEach(deepFreeze);
++    Object.freeze(value);
++  }
++  return value;
++}
++
+ function profile({
+   id,
+   label,
+@@ -19,6 +27,7 @@
+   tacEligible = true,
+   preferredTacCategory = null,
+   notes = "",
++  personnelImpact = null,
+ }) {
+   return Object.freeze({
+     id,
+@@ -34,6 +43,7 @@
+     tacEligible,
+     preferredTacCategory,
+     notes,
++    ...(personnelImpact ? { personnelImpact: deepFreeze(personnelImpact) } : {}),
+   });
+ }
+ 
+@@ -44,6 +54,7 @@
+   categoryLabel,
+   sortOrder,
+   profiles,
++  personnelImpact = null,
+ }) {
+   return Object.freeze({
+     id,
+@@ -52,6 +63,7 @@
+     categoryLabel,
+     sortOrder,
+     profiles: Object.freeze([...profiles]),
++    ...(personnelImpact ? { personnelImpact: deepFreeze(personnelImpact) } : {}),
+   });
+ }
+ 
+@@ -692,6 +704,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 10,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        exposed_infantry: {
++          categoryWeights: { gunshot: 85, massive_gore: 15 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "standard",
+@@ -721,6 +742,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 20,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        exposed_infantry: {
++          categoryWeights: { gunshot: 85, massive_gore: 15 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "standard",
+@@ -750,6 +780,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 30,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        impact: {
++          categoryWeights: { less_lethal: 80, blunt_force: 20 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "impact",
+@@ -770,6 +809,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 40,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_projectile: {
++          categoryWeights: { massive_gore: 75, gunshot: 25 },
++          severityPolicy: { mode: "minimum", minimum: "severe" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "standard",
+@@ -791,6 +839,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 50,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_projectile: {
++          categoryWeights: { massive_gore: 85, gunshot: 15 },
++          severityPolicy: { mode: "minimum", minimum: "severe" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "vehicle",
+@@ -821,6 +878,19 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 60,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_impact: {
++          categoryWeights: { fire_explosive: 70, massive_gore: 30 },
++          severityPolicy: { mode: "weighted_minimum", minimum: "severe", weights: { severe: 15, deadly: 85 } },
++        },
++        fragmentation: {
++          categoryWeights: { fire_explosive: 65, gunshot: 25, massive_gore: 10 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "single",
+@@ -863,6 +933,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 70,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_projectile: {
++          categoryWeights: { massive_gore: 90, fire_explosive: 10 },
++          severityPolicy: { mode: "weighted_minimum", minimum: "severe", weights: { severe: 15, deadly: 85 } },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "standard",
+@@ -884,6 +963,19 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 80,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_detonation: {
++          categoryWeights: { fire_explosive: 70, massive_gore: 30 },
++          severityPolicy: { mode: "minimum", minimum: "severe" },
++        },
++        fragmentation: {
++          categoryWeights: { fire_explosive: 60, gunshot: 25, massive_gore: 15 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "high_explosive",
+@@ -914,6 +1006,19 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 90,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_impact: {
++          categoryWeights: { massive_gore: 70, fire_explosive: 30 },
++          severityPolicy: { mode: "weighted_minimum", minimum: "severe", weights: { severe: 15, deadly: 85 } },
++        },
++        secondary_blast: {
++          categoryWeights: { fire_explosive: 60, blunt_force: 25, massive_gore: 15 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "standard",
+@@ -947,6 +1052,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 100,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_projectile: {
++          categoryWeights: { massive_gore: 100 },
++          severityPolicy: { mode: "weighted_minimum", minimum: "severe", weights: { severe: 15, deadly: 85 } },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "full_charge",
+@@ -969,6 +1083,19 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 110,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        direct_impact: {
++          categoryWeights: { fire_explosive: 65, massive_gore: 35 },
++          severityPolicy: { mode: "weighted_minimum", minimum: "severe", weights: { severe: 15, deadly: 85 } },
++        },
++        area_saturation: {
++          categoryWeights: { fire_explosive: 60, gunshot: 25, massive_gore: 15 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "area",
+@@ -999,6 +1126,19 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 120,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        light_direct: {
++          categoryWeights: { massive_gore: 75, gunshot: 25 },
++          severityPolicy: { mode: "minimum", minimum: "moderate" },
++        },
++        heavy_direct: {
++          categoryWeights: { massive_gore: 85, gunshot: 15 },
++          severityPolicy: { mode: "minimum", minimum: "severe" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "light_model",
+@@ -1031,6 +1171,15 @@
+     category: "vehicle_weapons",
+     categoryLabel: "Vehicle Weapons",
+     sortOrder: 130,
++    // Authoring metadata only: no automatic personnel resolution in Phase 1.
++    personnelImpact: {
++      exposures: {
++        secondary_fragmentation: {
++          categoryWeights: { fire_explosive: 70, gunshot: 20, massive_gore: 10 },
++          severityPolicy: { mode: "normal" },
++        }
++      },
++    },
+     profiles: [
+       profile({
+         id: "standard",
