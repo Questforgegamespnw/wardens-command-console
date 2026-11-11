@@ -33,6 +33,12 @@ export function resolveShipCombat(input = {}) {
 
   if (!quality) throw new RangeError("Unknown ship hit quality.");
 
+  if (Array.isArray(attack.rangeBands) && !attack.rangeBands.includes(distance.id)) {
+    return { ok: true, outcome: "weapon_out_of_range", finalSeverity: "no_effect",
+      effect: SHIP_FINAL_SEVERITY_EFFECTS.no_effect,
+      warnings: [`Weapon cannot attack at ${distance.label} range.`], calculation: [], handoffs: {}, preview: null };
+  }
+
   if (!distance.normalAttack) {
     return {
       ok: true,
@@ -134,11 +140,10 @@ export function resolveShipCombat(input = {}) {
 
   let hullLoss = effect.hullLoss ?? 0;
   let shipTacSeverity = effect.shipTacSeverity ?? null;
-  let targetChoice = effect.targetChoice === true;
+  const targetChoice = false;
 
   if (attack.hullDamageMode === "none") {
     hullLoss = 0;
-    targetChoice = false;
     shipTacSeverity =
       severity === "solid" ? "minor"
       : severity === "breaching" ? "moderate"
@@ -155,7 +160,7 @@ export function resolveShipCombat(input = {}) {
     shipTacSeverity = minimumShipTacSeverity;
   }
 
-  if (minimumShipTacSeverity && !shipTacSeverity && severity !== "no_effect") {
+  if (minimumShipTacSeverity && !shipTacSeverity && severity !== "no_effect" && !targetChoice) {
     shipTacSeverity = minimumShipTacSeverity;
   }
 
@@ -209,6 +214,7 @@ export function resolveShipCombat(input = {}) {
       hullLoss,
       shipTacSeverity,
       targetChoice,
+      choices: null,
       megadamageEligible: effect.megadamageEligible === true,
     },
     calculation,

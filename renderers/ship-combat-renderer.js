@@ -217,7 +217,6 @@ export function renderShipCombatResult(result) {
   const preview = shipCombat.preview ?? {};
   const calc = shipCombat.calculation ?? [];
   const linked = Boolean(result.metadata?.linkedShipId);
-  const targetChoice = effect.targetChoice === true;
 
   return `
     <article class="result-card ship-result">
@@ -250,7 +249,7 @@ export function renderShipCombatResult(result) {
 
       ${shipCombat.finalSeverity === "solid" ? `
         <div class="callout">
-          <strong>Solid:</strong> lose 1 Hull and resolve Minor Ship TAC.
+          <strong>Solid:</strong> apply <strong>1 Hull loss AND Minor Ship TAC</strong>.
         </div>
       ` : ""}
 
@@ -270,7 +269,7 @@ export function renderShipCombatResult(result) {
         <section class="result-card__section">
           <h3>Preview</h3>
           <p>
-            ${preview.hullBefore != null ? `Hull ${preview.hullBefore} → ${preview.hullAfter}. ` : ""}
+            ${preview.hullBefore != null ? (`Hull ${preview.hullBefore} → ${preview.hullAfter}. `) : ""}
             ${preview.megadamageBefore != null ? `Megadamage ${preview.megadamageBefore} → ${preview.megadamageAfter}.` : ""}
           </p>
         </section>
@@ -285,13 +284,6 @@ export function renderShipCombatResult(result) {
 
       ${linked ? `
         <div class="ship-result__apply">
-          ${targetChoice ? `
-            <label class="form-label" for="ship-combat-apply-choice-${escapeHtml(result.id)}">Apply Choice</label>
-            <select id="ship-combat-apply-choice-${escapeHtml(result.id)}" class="select" data-ship-combat-choice>
-              <option value="hull">1 Hull</option>
-              <option value="minor_stac">Minor Ship TAC</option>
-            </select>
-          ` : ""}
           <button class="button button--primary" type="button" data-apply-ship-combat="${escapeHtml(result.id)}">
             Apply to Ship
           </button>

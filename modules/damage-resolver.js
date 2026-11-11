@@ -223,8 +223,40 @@ function resolveDirectWounds({
     );
   }
 
+  if (target.type === "aegis_shield" || target.type === "structure") {
+    throw new RangeError("Direct Wounds require a wound-banded personnel or vehicle target.");
+  }
+  if (!target.healthPerWound) {
+    throw new TypeError("Direct Wounds require Health per Wound.");
+  }
+
+  const valueBefore = target.currentHealth;
+  let valueAfter = valueBefore;
+  let thresholdsCrossed = 0;
+  for (let i = 0; i < count && valueAfter > 0; i += 1) {
+    if (Number.isInteger(target.woundsRemaining)
+        && thresholdsCrossed >= target.woundsRemaining) break;
+    // Finish the CURRENT band, even when it is already partly depleted.
+    const nextThreshold = Math.max(0,
+      (Math.ceil(valueAfter / target.healthPerWound) - 1) * target.healthPerWound);
+    valueAfter = nextThreshold;
+    thresholdsCrossed += 1;
+  }
+  const woundsAfter = Number.isInteger(target.woundsRemaining)
+    ? Math.max(0, target.woundsRemaining - thresholdsCrossed)
+    : null;
+  const durability = {
+    resource: "health",
+    valueBefore,
+    valueAfter,
+    damageApplied: valueBefore - valueAfter,
+    overflowDamage: 0,
+    thresholdsCrossed,
+    woundsBefore: target.woundsRemaining,
+    woundsAfter,
+  };
   const thresholds = buildDirectWoundThresholds({
-    count,
+    count: thresholdsCrossed,
     woundsRemaining: target.woundsRemaining,
   });
 
@@ -288,22 +320,7 @@ function resolveDirectWounds({
       finalDamage: null,
     }),
 
-    durability: Object.freeze({
-      resource: getDurabilityResource(target.type),
-      valueBefore: getDurabilityValue(target),
-      valueAfter: getDurabilityValue(target),
-      damageApplied: 0,
-      overflowDamage: 0,
-      thresholdsCrossed: count,
-      woundsBefore: target.woundsRemaining,
-      woundsAfter:
-        Number.isInteger(target.woundsRemaining)
-          ? Math.max(
-              0,
-              target.woundsRemaining - count,
-            )
-          : null,
-    }),
+    durability: Object.freeze(durability),
 
     tacHandoff: Object.freeze({
       triggered: false,
@@ -313,15 +330,15 @@ function resolveDirectWounds({
     }),
 
     woundHandoff: Object.freeze({
-      triggered: true,
-      count,
+      triggered: thresholdsCrossed > 0,
+      count: thresholdsCrossed,
       woundType: attack.woundType,
       thresholds: Object.freeze(thresholds),
       overflowDamage: 0,
       direct: true,
     }),
 
-    stateChanges: Object.freeze([]),
+    stateChanges: Object.freeze(buildStateChanges({ target, durability })),
   });
 }
 

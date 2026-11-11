@@ -99,14 +99,11 @@ export function duplicateShipEntity(ship) {
   });
 }
 
-export function applyShipCombatResult(ship, result, choice = "hull") {
+export function applyShipCombatResult(ship, result) {
   if (!ship || !result?.preview) return ship;
 
   let hullLoss = Number(result.effect?.hullLoss ?? 0);
   let pendingShipTac = result.handoffs?.shipTac ?? null;
-
-  // Solid results apply both 1 Hull and Minor Ship TAC.
-  // The choice argument is retained for backward compatibility with older saved results.
 
   return {
     ...ship,

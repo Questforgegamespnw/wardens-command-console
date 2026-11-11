@@ -1,3 +1,5 @@
+import { collectVehicleTacPendingActions } from "./modules/vehicle-tac-consequence-dispatcher.js";
+
 import {
   resolveStandardTest
 } from "./modules/standard-test.js";
@@ -2186,10 +2188,6 @@ function getTacResolverId(targetType) {
 }
 
 function applyDamageToLinkedEntity(entity, damage) {
-  if (damage.mode === "direct_wounds") {
-    return;
-  }
-
   const durability = damage.durability ?? {};
   if (durability.resource !== "health") {
     return;
@@ -2220,7 +2218,8 @@ function getDamageResultStatus(damage) {
 
 function buildDamageResultSummary(damage) {
   if (damage.mode === "direct_wounds") {
-    return `${damage.woundHandoff?.count ?? 0} direct ${damage.woundHandoff?.count === 1 ? "Wound" : "Wounds"}`;
+    const count = damage.woundHandoff?.count ?? 0;
+    return `${count} direct ${count === 1 ? "Wound" : "Wounds"}; Health ${damage.durability?.valueBefore} → ${damage.durability?.valueAfter}`;
   }
 
   const finalDamage = damage.defense?.finalDamage ?? 0;
@@ -2231,7 +2230,9 @@ function buildDamageResultSummary(damage) {
 
 function buildDamageResultRuling(damage) {
   if (damage.woundHandoff?.triggered) {
-    return "Resolve the generated Wound handoff using the listed Wound Type and thresholds.";
+    return damage.target?.type === "vehicle"
+      ? "Resolve one Vehicle TAC per crossed wound threshold; apply any secondary consequences."
+      : "Resolve the generated Wound handoff using the listed Wound Type and thresholds.";
   }
   if (damage.tacHandoff?.triggered) {
     return `Resolve one ${formatAppIdentifier(damage.tacHandoff.resolverId)} result.`;
@@ -3608,6 +3609,7 @@ function handleVehicleTacSubmit(event) {
 
   metadata: {
     vehicleTac,
+    pendingActions: collectVehicleTacPendingActions(vehicleTac, { vehicleId: targetEntity?.id ?? null }),
 
     linkedEntityId:
       targetEntity?.id ?? null
