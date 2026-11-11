@@ -1,3 +1,4 @@
+import { createOccupantSuitRegistry } from "./modules/occupant-suit-registry.js";
 import { resolveDirectVehicleSubsystem } from "./modules/direct-vehicle-subsystem.js";
 import { planCrossScaleAttack } from "./modules/cross-scale-router.js";
 import { collectVehicleTacPendingActions } from "./modules/vehicle-tac-consequence-dispatcher.js";
@@ -219,6 +220,7 @@ const appState = {
   activeResultId: null,
 
   quickEntities: [],
+  occupantSuitRegistry: { occupants: [], suits: [] },
   selectedEntityId: null,
   editingEntityId: null,
   quickEntityErrors: [],
@@ -5714,6 +5716,7 @@ function persistSessionState() {
       recentResults: appState.recentResults,
       activeResultId: appState.activeResultId,
       quickEntities: appState.quickEntities,
+      occupantSuitRegistry: appState.occupantSuitRegistry,
       selectedEntityId: appState.selectedEntityId,
       hazardTrackers: appState.hazardTrackers,
       selectedHazardTrackerId:
@@ -5781,6 +5784,14 @@ function restoreSessionState() {
     if (Array.isArray(stored.quickEntities)) {
       appState.quickEntities =
         stored.quickEntities;
+    }
+
+    if (stored.occupantSuitRegistry) {
+      try {
+        appState.occupantSuitRegistry = createOccupantSuitRegistry(stored.occupantSuitRegistry);
+      } catch (error) {
+        console.warn("Ignoring invalid occupant/suit registry", error);
+      }
     }
 
     if (
