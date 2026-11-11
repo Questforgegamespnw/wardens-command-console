@@ -134,6 +134,33 @@ export const CHARACTER_VISIBILITY = Object.freeze([
   "warden",
 ]);
 
+export const CHARACTER_STARTING_GEAR_SOURCE_IDS = Object.freeze([
+  "career_gear",
+  "specialty_gear",
+  "employer_issued",
+  "ship_issued",
+  "personal_keepsake",
+  "restricted_item",
+  "debt_financed",
+]);
+
+export const CHARACTER_EQUIPMENT_INSTANCE_KINDS = Object.freeze([
+  "inventory",
+  "weapon",
+  "armor",
+  "attachment",
+]);
+
+export const CHARACTER_EQUIPMENT_CONDITIONS = Object.freeze([
+  "functional",
+  "worn",
+  "damaged",
+  "broken",
+  "depleted",
+  "lost",
+  "unknown",
+]);
+
 export const CHARACTER_ITEM_TYPES = Object.freeze([
   "tool",
   "gear",
@@ -731,12 +758,14 @@ export function createArmorInstance({
   id = null,
   definitionId = null,
   label = "",
+  gearSource = null,
   notes = "",
 } = {}) {
   return {
     id,
     definitionId,
     label,
+    gearSource,
 
     ownership: createOwnershipRecord(),
     procurement: createProcurementRecord(),
@@ -783,12 +812,14 @@ export function createWeaponInstance({
   id = null,
   definitionId = null,
   label = "",
+  gearSource = null,
   notes = "",
 } = {}) {
   return {
     id,
     definitionId,
     label,
+    gearSource,
 
     ownership: createOwnershipRecord(),
     procurement: createProcurementRecord(),
@@ -805,6 +836,31 @@ export function createWeaponInstance({
 
     attachments: [],
     modifications: [],
+    tags: [],
+    notes,
+  };
+}
+
+export function createAttachmentInstance({
+  id = null,
+  definitionId = null,
+  label = "",
+  slot = null,
+  integrated = false,
+  intrinsic = false,
+  removable = true,
+  condition = "functional",
+  notes = "",
+} = {}) {
+  return {
+    id,
+    definitionId,
+    label,
+    slot,
+    integrated,
+    intrinsic,
+    removable: intrinsic ? false : removable,
+    condition,
     tags: [],
     notes,
   };
@@ -837,6 +893,7 @@ export function createInventoryItem({
   unit = "item",
   location = "carried",
   readied = false,
+  gearSource = null,
   notes = "",
 } = {}) {
   return {
@@ -848,6 +905,7 @@ export function createInventoryItem({
     unit,
     location,
     readied,
+    gearSource,
 
     ownership: createOwnershipRecord(),
     procurement: createProcurementRecord(),

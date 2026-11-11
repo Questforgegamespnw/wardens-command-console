@@ -29,6 +29,16 @@ import {
   applySkillGenerationToRecord,
 } from "./character-skill-rules.js";
 
+import {
+  createEquipmentInstanceFromDefinition,
+  installAttachmentOnWeapon,
+  removeAttachmentFromWeapon,
+  setWeaponAmmunition as applyWeaponAmmunition,
+  clearWeaponAmmunition,
+  changeEquipmentSource,
+  changeEquipmentOwnership,
+} from "./character-gear-rules.js";
+
 export const CHARACTER_BUILDER_STEPS = Object.freeze([
   Object.freeze({ id: "identity", label: "Identity" }),
   Object.freeze({ id: "origin", label: "Origin" }),
@@ -37,6 +47,7 @@ export const CHARACTER_BUILDER_STEPS = Object.freeze([
   Object.freeze({ id: "specialty", label: "Specialty" }),
   Object.freeze({ id: "generation", label: "Stats & Saves" }),
   Object.freeze({ id: "skills", label: "Skills" }),
+  Object.freeze({ id: "gear", label: "Starting Gear" }),
   Object.freeze({ id: "agent", label: "Agent Overlay" }),
   Object.freeze({ id: "review", label: "Review" }),
 ]);
@@ -56,6 +67,7 @@ export function createCharacterBuilderState({
     dirty: false,
     errors: [],
     notices: [],
+    gearBrowseCategory: "all",
   };
 }
 
@@ -394,6 +406,146 @@ export function updateAgentOverlay(state, patch = {}) {
   });
 }
 
+export function setBuilderGearBrowseCategory(state, category = "all") {
+  return {
+    ...state,
+    gearBrowseCategory: String(category || "all"),
+    errors: [],
+  };
+}
+
+export function addBuilderEquipment(state, definitionId, options = {}) {
+  try {
+    const instance = createEquipmentInstanceFromDefinition(definitionId, {
+      instanceId: createGearInstanceId(definitionId),
+      gearSource: options.gearSource ?? null,
+      ownershipStatus: options.ownershipStatus ?? null,
+      ownerType: options.ownerType ?? null,
+      quantity: options.quantity ?? 1,
+      location: options.location ?? "carried",
+    });
+
+    const record = structuredClone(state.record);
+    if (instance.attachments) {
+      record.weaponInstances.push(instance);
+    } else if (instance.defense && instance.environment && instance.systems) {
+      record.armor.instances.push(instance);
+    } else {
+      const existing = record.inventory.find((entry) => (
+        entry.definitionId === instance.definitionId
+        && entry.gearSource === instance.gearSource
+        && entry.ownership?.status === instance.ownership?.status
+      ));
+      if (existing) existing.quantity += instance.quantity;
+      else record.inventory.push(instance);
+    }
+    return updateRecord(state, record);
+  } catch (error) {
+    return withError(state, error.message);
+  }
+}
+
+export function removeBuilderEquipment(state, instanceId) {
+  const record = structuredClone(state.record);
+  const before = record.inventory.length + record.weaponInstances.length + record.armor.instances.length;
+  record.inventory = record.inventory.filter((entry) => entry.id !== instanceId);
+  record.weaponInstances = record.weaponInstances.filter((entry) => entry.id !== instanceId);
+  record.armor.instances = record.armor.instances.filter((entry) => entry.id !== instanceId);
+  if (record.armor.equippedInstanceId === instanceId) {
+    record.armor.equippedInstanceId = null;
+  }
+  const after = record.inventory.length + record.weaponInstances.length + record.armor.instances.length;
+  return before === after ? withError(state, `Unknown equipment instance: ${instanceId}`) : updateRecord(state, record);
+}
+
+export function updateBuilderEquipmentQuantity(state, instanceId, quantity) {
+  const record = structuredClone(state.record);
+  const item = record.inventory.find((entry) => entry.id === instanceId);
+  if (!item) return withError(state, "Only general inventory items use quantity.");
+  item.quantity = Math.max(1, Math.floor(Number(quantity) || 1));
+  return updateRecord(state, record);
+}
+
+export function updateBuilderEquipmentSource(state, instanceId, gearSource) {
+  return updateAnyEquipment(state, instanceId, (instance) => changeEquipmentSource(instance, gearSource || null));
+}
+
+export function updateBuilderEquipmentOwnership(state, instanceId, status) {
+  const ownerType = status === "employer_issued" ? "employer"
+    : status === "ship_issued" ? "ship"
+    : status === "debt_financed" ? "creditor"
+    : "character";
+  return updateAnyEquipment(state, instanceId, (instance) => changeEquipmentOwnership(instance, {
+    status,
+    ownerType,
+    returnRequired: ["employer_issued", "ship_issued", "loaned", "leased"].includes(status),
+  }));
+}
+
+
+export function setBuilderEquippedArmor(state, instanceId = null) {
+  const record = structuredClone(state.record);
+  if (instanceId !== null && !record.armor.instances.some((entry) => entry.id === instanceId)) {
+    return withError(state, `Unknown armor instance: ${String(instanceId)}`);
+  }
+  record.armor.equippedInstanceId = instanceId;
+  return updateRecord(state, record);
+}
+
+export function installBuilderWeaponAttachment(state, weaponInstanceId, attachmentDefinitionId) {
+  return updateWeapon(state, weaponInstanceId, (weapon) => installAttachmentOnWeapon(
+    weapon,
+    attachmentDefinitionId,
+    { instanceId: createGearInstanceId(attachmentDefinitionId) },
+  ));
+}
+
+export function removeBuilderWeaponAttachment(state, weaponInstanceId, attachmentInstanceId) {
+  return updateWeapon(state, weaponInstanceId, (weapon) => removeAttachmentFromWeapon(weapon, attachmentInstanceId));
+}
+
+export function setBuilderWeaponAmmunition(state, weaponInstanceId, ammunitionDefinitionId) {
+  return updateWeapon(state, weaponInstanceId, (weapon) => (
+    ammunitionDefinitionId
+      ? applyWeaponAmmunition(weapon, ammunitionDefinitionId)
+      : clearWeaponAmmunition(weapon)
+  ));
+}
+
+function updateWeapon(state, instanceId, updater) {
+  try {
+    const record = structuredClone(state.record);
+    const index = record.weaponInstances.findIndex((entry) => entry.id === instanceId);
+    if (index < 0) throw new Error(`Unknown weapon instance: ${instanceId}`);
+    record.weaponInstances[index] = updater(record.weaponInstances[index]);
+    return updateRecord(state, record);
+  } catch (error) {
+    return withError(state, error.message);
+  }
+}
+
+function updateAnyEquipment(state, instanceId, updater) {
+  try {
+    const record = structuredClone(state.record);
+    const collections = [record.inventory, record.weaponInstances, record.armor.instances];
+    for (const collection of collections) {
+      const index = collection.findIndex((entry) => entry.id === instanceId);
+      if (index >= 0) {
+        collection[index] = updater(collection[index]);
+        return updateRecord(state, record);
+      }
+    }
+    throw new Error(`Unknown equipment instance: ${instanceId}`);
+  } catch (error) {
+    return withError(state, error.message);
+  }
+}
+
+function createGearInstanceId(definitionId) {
+  const suffix = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return `${String(definitionId || "gear")}_${suffix}`;
+}
+
 export function createCharacterExportEnvelope(record, {
   now = () => new Date().toISOString(),
 } = {}) {
@@ -451,6 +603,7 @@ export function getBuilderCompletion(state) {
     specialty: Boolean(profile.specialty.definitionId) && focusComplete,
     generation: Boolean(state.record.generation?.rolled),
     skills: Boolean(state.record.generation?.skills?.complete),
+    gear: true,
     agent: true,
     review: false,
   };

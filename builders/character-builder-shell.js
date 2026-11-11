@@ -13,6 +13,16 @@ import {
   rollBuilderGeneration,
   resetBuilderGeneration,
   setBuilderSkillSelection,
+  setBuilderGearBrowseCategory,
+  addBuilderEquipment,
+  removeBuilderEquipment,
+  updateBuilderEquipmentQuantity,
+  updateBuilderEquipmentSource,
+  updateBuilderEquipmentOwnership,
+  setBuilderEquippedArmor,
+  installBuilderWeaponAttachment,
+  removeBuilderWeaponAttachment,
+  setBuilderWeaponAmmunition,
   serializeCharacterExport,
   parseCharacterImport,
 } from "../modules/character-builder-state.js";
@@ -73,6 +83,26 @@ export function mountCharacterBuilder(root, options = {}) {
       setState(rollBuilderGeneration(state));
     } else if (action === "generation-reset") {
       setState(resetBuilderGeneration(state));
+    } else if (action === "gear-add") {
+      setState(addBuilderEquipment(state, optionId, {
+        gearSource: actionButton.dataset.gearSource || null,
+      }));
+    } else if (action === "gear-remove") {
+      setState(removeBuilderEquipment(state, actionButton.dataset.instanceId));
+    } else if (action === "gear-equip-armor") {
+      setState(setBuilderEquippedArmor(state, actionButton.dataset.instanceId));
+    } else if (action === "gear-unequip-armor") {
+      setState(setBuilderEquippedArmor(state, null));
+    } else if (action === "gear-install-attachment") {
+      const weaponId = actionButton.dataset.instanceId;
+      const attachmentId = root.querySelector(`[data-gear-attachment-select="${CSS.escape(weaponId)}"]`)?.value ?? "";
+      if (attachmentId) setState(installBuilderWeaponAttachment(state, weaponId, attachmentId));
+    } else if (action === "gear-remove-attachment") {
+      setState(removeBuilderWeaponAttachment(
+        state,
+        actionButton.dataset.instanceId,
+        actionButton.dataset.attachmentInstanceId,
+      ));
     } else if (action === "export") {
       downloadJson(
         serializeCharacterExport(state.record),
@@ -101,6 +131,31 @@ export function mountCharacterBuilder(root, options = {}) {
   });
 
   root.addEventListener("change", async (event) => {
+    if (event.target.matches("[data-gear-browse-category]")) {
+      setState(setBuilderGearBrowseCategory(state, event.target.value));
+      return;
+    }
+
+    if (event.target.matches("[data-gear-quantity]")) {
+      setState(updateBuilderEquipmentQuantity(state, event.target.dataset.instanceId, event.target.value));
+      return;
+    }
+
+    if (event.target.matches("[data-gear-source]")) {
+      setState(updateBuilderEquipmentSource(state, event.target.dataset.instanceId, event.target.value));
+      return;
+    }
+
+    if (event.target.matches("[data-gear-ownership]")) {
+      setState(updateBuilderEquipmentOwnership(state, event.target.dataset.instanceId, event.target.value));
+      return;
+    }
+
+    if (event.target.matches("[data-gear-ammunition]")) {
+      setState(setBuilderWeaponAmmunition(state, event.target.dataset.instanceId, event.target.value));
+      return;
+    }
+
     if (event.target.matches("[data-builder-skill-select]")) {
       setState(setBuilderSkillSelection(state, {
         layer: event.target.dataset.skillLayer,

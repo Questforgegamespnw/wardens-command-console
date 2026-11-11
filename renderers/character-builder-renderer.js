@@ -33,6 +33,22 @@ import {
   serializeCharacterExport,
 } from "../modules/character-builder-state.js";
 
+import {
+  listPersonalEquipment,
+  getPersonalEquipment,
+  getCompatibleAttachments,
+  getCompatibleAmmunition,
+  STARTING_GEAR_SOURCE_IDS,
+} from "../data/personal-equipment.js";
+
+import {
+  getCharacterGearRecommendations,
+} from "../data/character-gear-recommendations.js";
+
+import {
+  CHARACTER_OWNERSHIP_STATUSES,
+} from "../data/character-record-schema.js";
+
 export function renderCharacterBuilderShell(state) {
   const completion = getBuilderCompletion(state);
   const record = state.record;
@@ -113,6 +129,7 @@ function renderActiveStep(state) {
     case "specialty": return renderSpecialtyStep(state);
     case "generation": return renderGenerationStep(state);
     case "skills": return renderSkillsStep(state);
+    case "gear": return renderGearStep(state);
     case "agent": return renderAgentStep(state);
     case "review": return renderReviewStep(state);
     default: return renderIdentityStep(state);
@@ -793,6 +810,175 @@ function renderAgentStep(state) {
   });
 }
 
+function renderGearStep(state) {
+  const careerId = state.record.profile.career.definitionId;
+  const specialtyId = state.record.profile.specialty.definitionId;
+  const recommendations = getCharacterGearRecommendations({ careerId, specialtyId });
+  const category = state.gearBrowseCategory ?? "all";
+  const catalog = listPersonalEquipment({
+    category: mapBrowseCategory(category),
+  }).filter((entry) => isBuilderSelectableEquipment(entry, category));
+
+  return renderStepPanel({
+    eyebrow: "Starting Gear",
+    title: "Starting Gear",
+    description: "Choose the equipment this character begins with. Recommendations guide selection but never add items automatically.",
+    body: `
+      <div class="alert alert--info">
+        Select equipment appropriate to your career, specialty, and circumstances. Confirm final choices with your Warden before finalizing the character.
+      </div>
+
+      <section class="character-builder__subpanel gear-section">
+        <div class="form-section__heading"><div><h3>Recommended</h3><p class="form-help">Career and Specialty overlaps are combined into one card.</p></div></div>
+        ${recommendations.length
+          ? `<div class="gear-card-grid">${recommendations.map(renderRecommendationCard).join("")}</div>`
+          : `<div class="empty-state">Choose a Career and Specialty to see tailored recommendations.</div>`}
+      </section>
+
+      <section class="character-builder__subpanel gear-section">
+        <div class="form-section__heading">
+          <div><h3>Browse All</h3><p class="form-help">Every selection uses the same canonical equipment record.</p></div>
+          <label class="gear-filter">Category
+            <select class="select" data-gear-browse-category>
+              ${GEAR_BROWSE_CATEGORIES.map((entry) => `<option value="${entry.id}" ${entry.id === category ? "selected" : ""}>${entry.label}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+        <div class="gear-card-grid">${catalog.map(renderCatalogCard).join("")}</div>
+      </section>
+
+      <section class="character-builder__subpanel gear-section">
+        <div class="form-section__heading"><div><h3>Selected Gear</h3><p class="form-help">Finalization assumes these choices were agreed on at the table.</p></div></div>
+        ${renderSelectedGear(state.record)}
+      </section>
+    `,
+  });
+}
+
+const GEAR_BROWSE_CATEGORIES = Object.freeze([
+  { id: "all", label: "All Equipment" },
+  { id: "weapons", label: "Weapons" },
+  { id: "armor", label: "Armor" },
+  { id: "tools", label: "Tools" },
+  { id: "medical_survival", label: "Medical & Survival" },
+  { id: "sensors_communications", label: "Sensors & Communications" },
+  { id: "consumables", label: "Consumables" },
+  { id: "personal_effects", label: "Personal Effects" },
+]);
+
+function mapBrowseCategory(category) {
+  return ["weapons", "armor", "tools", "consumables", "personal_effects"].includes(category)
+    ? category
+    : null;
+}
+
+function isBuilderSelectableEquipment(entry, category) {
+  if (["fire_modes"].includes(entry.category)) return false;
+  if (category === "medical_survival") return ["medical_survival", "medical", "survival"].includes(entry.category) || entry.tags?.some((tag) => ["medical", "survival"].includes(tag));
+  if (category === "sensors_communications") return entry.category === "sensors_communications" || entry.tags?.some((tag) => ["sensor", "scanner", "communications"].includes(tag));
+  if (category === "all") return !["patches"].includes(entry.category);
+  return true;
+}
+
+function renderRecommendationCard(recommendation) {
+  const item = getPersonalEquipment(recommendation.itemId);
+  if (!item) return "";
+  const source = recommendation.suggestedSources?.[0] ?? "";
+  return `
+    <article class="gear-card gear-card--recommended">
+      <div class="gear-card__heading"><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(formatIdentifier(item.category))}</span></div>
+      <p>${escapeHtml(item.description ?? "")}</p>
+      <p class="gear-card__reason">${recommendation.origins.map((origin) => escapeHtml(origin.reason)).join(" ")}</p>
+      <div class="gear-card__meta">${recommendation.dispositions.map(formatIdentifier).join(" · ")}</div>
+      <button class="button button--secondary" type="button" data-builder-action="gear-add" data-option-id="${escapeHtml(item.id)}" data-gear-source="${escapeHtml(source)}">Add to Gear</button>
+    </article>`;
+}
+
+function renderCatalogCard(item) {
+  return `
+    <article class="gear-card">
+      <div class="gear-card__heading"><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(formatIdentifier(item.category))}</span></div>
+      <p>${escapeHtml(item.description ?? "")}</p>
+      <button class="button button--secondary" type="button" data-builder-action="gear-add" data-option-id="${escapeHtml(item.id)}">Add to Gear</button>
+    </article>`;
+}
+
+function renderSelectedGear(record) {
+  const equippedArmorId = record.armor?.equippedInstanceId ?? null;
+  const entries = [
+    ...(record.armor?.instances ?? []).map((entry) => ({
+      ...entry,
+      kind: "armor",
+      equipped: entry.id === equippedArmorId,
+    })),
+    ...(record.weaponInstances ?? []).map((entry) => ({ ...entry, kind: "weapon" })),
+    ...(record.inventory ?? []).map((entry) => ({ ...entry, kind: "inventory" })),
+  ];
+  if (!entries.length) return `<div class="empty-state">No starting equipment selected. Empty starting gear is valid.</div>`;
+  return `<div class="selected-gear-list">${entries.map(renderSelectedGearCard).join("")}</div>`;
+}
+
+function renderSelectedGearCard(instance) {
+  const definition = getPersonalEquipment(instance.definitionId);
+  const quantity = instance.kind === "inventory" ? `
+    <label>Quantity<input class="input" type="number" min="1" value="${Number(instance.quantity ?? 1)}" data-gear-quantity data-instance-id="${escapeHtml(instance.id)}"></label>` : "";
+  return `
+    <article class="selected-gear-card">
+      <div class="selected-gear-card__heading">
+        <div>
+          <strong>${escapeHtml(instance.label || definition?.label || "Equipment")}</strong>
+          <span>${escapeHtml(formatIdentifier(instance.kind))}${instance.kind === "armor" ? ` · ${instance.equipped ? "Equipped" : "Unequipped"}` : ""}</span>
+        </div>
+        <div class="selected-gear-card__actions">
+          ${instance.kind === "armor"
+            ? `<button class="text-button" type="button" data-builder-action="${instance.equipped ? "gear-unequip-armor" : "gear-equip-armor"}" data-instance-id="${escapeHtml(instance.id)}">${instance.equipped ? "Unequip" : "Equip"}</button>`
+            : ""}
+          <button class="text-button" type="button" data-builder-action="gear-remove" data-instance-id="${escapeHtml(instance.id)}">Remove</button>
+        </div>
+      </div>
+      <div class="selected-gear-card__controls">
+        ${quantity}
+        <label>Gear Source<select class="select" data-gear-source data-instance-id="${escapeHtml(instance.id)}">${renderGearSourceOptions(instance.gearSource)}</select></label>
+        <label>Ownership<select class="select" data-gear-ownership data-instance-id="${escapeHtml(instance.id)}">${renderOwnershipOptions(instance.ownership?.status)}</select></label>
+      </div>
+      ${instance.kind === "weapon" ? renderWeaponCustomization(instance, definition) : ""}
+    </article>`;
+}
+
+function renderWeaponCustomization(instance, definition) {
+  const attachments = getCompatibleAttachments(definition, { includeOccupied: true }).filter((entry) => {
+    const slot = entry.profile?.compatibility?.requiredSlot ?? entry.profile?.slot;
+    return !(instance.attachments ?? []).some((installed) => !installed.intrinsic && installed.slot === slot);
+  });
+  const ammunition = getCompatibleAmmunition(definition);
+  const installed = (instance.attachments ?? []).filter((entry) => !entry.intrinsic);
+  return `
+    <div class="weapon-customization">
+      <h4>Weapon Configuration</h4>
+      ${installed.length ? `<div class="installed-attachments">${installed.map((entry) => `<span>${escapeHtml(entry.label)}${entry.integrated ? " (Integrated)" : ""}${entry.removable ? `<button type="button" class="text-button" data-builder-action="gear-remove-attachment" data-instance-id="${escapeHtml(instance.id)}" data-attachment-instance-id="${escapeHtml(entry.id)}">Remove</button>` : ""}</span>`).join("")}</div>` : `<p class="form-help">No removable attachments installed.</p>`}
+      <div class="weapon-customization__controls">
+        <label>Add Attachment<select class="select" data-gear-attachment-select="${escapeHtml(instance.id)}"><option value="">Choose compatible attachment</option>${attachments.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.label)}</option>`).join("")}</select></label>
+        <button class="button button--secondary" type="button" data-builder-action="gear-install-attachment" data-instance-id="${escapeHtml(instance.id)}" ${attachments.length ? "" : "disabled"}>Install</button>
+        <label>Ammunition<select class="select" data-gear-ammunition data-instance-id="${escapeHtml(instance.id)}"><option value="">No ammunition selected</option>${ammunition.map((entry) => `<option value="${escapeHtml(entry.id)}" ${entry.id === instance.ammo?.ammunitionDefinitionId ? "selected" : ""}>${escapeHtml(entry.label)}</option>`).join("")}</select></label>
+      </div>
+    </div>`;
+}
+
+function renderGearSourceOptions(selected) {
+  return `<option value="" ${selected == null ? "selected" : ""}>Unspecified</option>${STARTING_GEAR_SOURCE_IDS.map((id) => `<option value="${id}" ${id === selected ? "selected" : ""}>${formatIdentifier(id)}</option>`).join("")}`;
+}
+
+function renderOwnershipOptions(selected) {
+  return CHARACTER_OWNERSHIP_STATUSES.map((id) => `<option value="${id}" ${id === selected ? "selected" : ""}>${formatIdentifier(id)}</option>`).join("");
+}
+
+function formatGearSummary(record) {
+  const armor = record.armor?.instances?.length ?? 0;
+  const weapons = record.weaponInstances?.length ?? 0;
+  const inventory = record.inventory?.reduce((total, entry) => total + Number(entry.quantity ?? 1), 0) ?? 0;
+  return `${armor} armor · ${weapons} weapons · ${inventory} other items`;
+}
+
 function renderReviewStep(state) {
   const record = state.record;
   const origin = getOrigin(record.profile.origin.definitionId);
@@ -801,7 +987,7 @@ function renderReviewStep(state) {
   const specialty = getSpecialty(record.profile.specialty.definitionId);
 
   return renderStepPanel({
-    eyebrow: "Step 9",
+    eyebrow: "Review",
     title: "Review",
     description: "Review the shell record before export. Mechanical packages will be layered in later.",
     body: `
@@ -816,6 +1002,7 @@ function renderReviewStep(state) {
         ${reviewEntry("Health", formatDurabilityHealth(record))}
         ${reviewEntry("Wounds", formatDurabilityWounds(record))}
         ${reviewEntry("Skills", formatSkillSummary(record.skills))}
+        ${reviewEntry("Starting Gear", formatGearSummary(record))}
         ${reviewEntry("Agent Overlay", record.hiddenWardenData.agentOverlay?.profileLabel || "Disabled")}
       </dl>
 
@@ -889,6 +1076,7 @@ function renderSummaryRail(state) {
         ${summaryEntry("Background", record.profile.background.label)}
         ${summaryEntry("Career", record.profile.career.label)}
         ${summaryEntry("Specialty", record.profile.specialty.label)}
+        ${summaryEntry("Gear", formatGearSummary(record))}
       </dl>
       <p class="form-help">${state.dirty ? "Unsaved changes" : "No changes"}</p>
     </aside>

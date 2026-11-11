@@ -449,3 +449,26 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Starting gear ----------------------------------------------------------- */
+.gear-section { display: grid; gap: 1rem; }
+.gear-section .form-section__heading { align-items: end; display: flex; gap: 1rem; justify-content: space-between; }
+.gear-filter { display: grid; gap: .35rem; min-width: 13rem; }
+.gear-card-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.gear-card { background: var(--surface-raised, #222831); border: 1px solid var(--border-subtle, #343a42); border-radius: .6rem; display: grid; gap: .65rem; padding: .85rem; }
+.gear-card--recommended { border-color: var(--accent, #b6d35c); }
+.gear-card p { margin: 0; line-height: 1.4; }
+.gear-card__heading, .selected-gear-card__heading { align-items: start; display: flex; gap: .75rem; justify-content: space-between; }
+.gear-card__heading span, .selected-gear-card__heading span, .gear-card__meta { font-size: .72rem; opacity: .7; text-transform: uppercase; }
+.gear-card__reason { border-left: 2px solid currentColor; opacity: .82; padding-left: .65rem; }
+.selected-gear-list { display: grid; gap: .85rem; }
+.selected-gear-card { border: 1px solid var(--border-subtle, #343a42); border-radius: .65rem; display: grid; gap: .85rem; padding: .9rem; }
+.selected-gear-card__heading > div { display: grid; gap: .2rem; }
+.selected-gear-card__controls, .weapon-customization__controls { align-items: end; display: grid; gap: .65rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+.selected-gear-card label, .weapon-customization label { display: grid; gap: .35rem; font-size: .78rem; }
+.weapon-customization { border-top: 1px solid var(--border-subtle, #343a42); display: grid; gap: .7rem; padding-top: .8rem; }
+.weapon-customization h4 { margin: 0; }
+.installed-attachments { display: flex; flex-wrap: wrap; gap: .5rem; }
+.installed-attachments > span { align-items: center; border: 1px solid var(--border-subtle, #343a42); border-radius: 999px; display: inline-flex; gap: .45rem; padding: .3rem .6rem; }
+@media (max-width: 720px) { .gear-section .form-section__heading { align-items: stretch; display: grid; } .gear-filter { min-width: 0; } }

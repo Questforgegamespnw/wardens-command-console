@@ -28,7 +28,8 @@ export const WOUND_THRESHOLD_RULES = Object.freeze({
 });
 
 export const TRAUMA_DAMPENING_RULES = Object.freeze({
-  standard: "shift_down_one_band",
+  // Both variants force qualifying wounds to Light; charges differ.
+  standard: "force_light",
   plus: "force_light",
 });
 
