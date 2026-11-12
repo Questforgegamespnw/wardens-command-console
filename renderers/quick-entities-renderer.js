@@ -254,6 +254,8 @@ export function renderQuickEntityEditor({
             <select class="select" id="quick-entity-armor">${listQuickEntityArmorChoices().map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.label)}</option>`).join('')}</select></div>
           <div class="form-field"><label class="form-label" for="quick-entity-weapon">Equipped Weapon</label>
             <select class="select" id="quick-entity-weapon"><option value="none">No weapon</option>${listWeapons().map(w=>`<option value="${escapeHtml(w.id)}">${escapeHtml(w.label)}</option>`).join('')}</select></div>
+          <div class="form-field"><label class="form-label" for="quick-entity-secondary-weapon">Carried Secondary Weapon</label>
+            <select class="select" id="quick-entity-secondary-weapon"><option value="none">No secondary weapon</option>${listWeapons().map(w=>`<option value="${escapeHtml(w.id)}">${escapeHtml(w.label)}</option>`).join('')}</select></div>
           <div class="form-field"><label class="form-label" for="quick-entity-ammo">Ammunition Type</label><select class="select" id="quick-entity-ammo"><option value="">Default / Unspecified</option></select></div>
           <div class="form-field"><label class="form-label" for="quick-entity-ammo-count">Ammunition Remaining (optional)</label><input class="input" id="quick-entity-ammo-count" type="number" min="0" placeholder="Untracked"></div>
           <div class="form-field form-field--full"><label class="form-label" for="quick-entity-attachments">Attachments (optional)</label><select class="select" id="quick-entity-attachments" multiple size="4"></select><p class="form-help">Use Ctrl / Cmd to select multiple compatible attachments.</p></div>

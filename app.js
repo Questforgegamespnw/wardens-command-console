@@ -1,3 +1,4 @@
+import { resolveInfantryLoadout } from "./modules/infantry-loadout-catalog.js";
 import { assembleVehicle, createVehicleRegistry } from "./modules/vehicle-instance-registry.js";
 import { LEGACY_ARMOR_CATALOG_IDS } from "./modules/equipment-catalog-reconciliation.js";
 import { assemblePersonnel, armorDefaults } from "./modules/quick-entity-assembly.js";
@@ -5367,11 +5368,12 @@ function handleQuickEntitySubmit(event) {
       const ammunitionId=document.querySelector('#quick-entity-ammo')?.value || null;
       const countText=document.querySelector('#quick-entity-ammo-count')?.value ?? '';
       const attachmentIds=Array.from(document.querySelector('#quick-entity-attachments')?.selectedOptions ?? [],o=>o.value);
+      const secondaryCatalogId=document.querySelector('#quick-entity-secondary-weapon')?.value || 'none';
       assembled=assemblePersonnel({entity:result,armorCatalogId,weaponCatalogId,
-        armorOverrides:formInput.defense,
         suitId:armorCatalogId==='none'?null:createLocalId('suit'),
         weaponId:weaponCatalogId==='none'?null:createLocalId('weapon'),
         attachmentIds,ammunitionId,ammunitionRemaining:countText===''?null:Number(countText),
+        carriedWeapons:secondaryCatalogId==='none'?[]:[{id:createLocalId('weapon'),catalogId:secondaryCatalogId}],
         occupantSuitRegistry:appState.occupantSuitRegistry,weaponRegistry:appState.weaponRegistry});
       result=assembled.entity;
     } catch(error) {
@@ -5470,6 +5472,14 @@ function handleQuickEntityTemplateChange(event) {
     // selecting a catalog suit explicitly always uses the catalog defaults.
     if (catalogId !== 'none') handleQuickEntityArmorChange({target:armorSelect});
   }
+  const loadout=resolveInfantryLoadout(templateId);
+  const primarySelect=document.querySelector('#quick-entity-weapon');
+  const secondarySelect=document.querySelector('#quick-entity-secondary-weapon');
+  if (primarySelect) {
+    primarySelect.value=loadout?.primary.catalogId ?? 'none';
+    refreshQuickEntityWeaponOptions();
+  }
+  if (secondarySelect) secondarySelect.value=loadout?.secondary.catalogId ?? 'none';
   const equipmentSection=armorSelect?.closest('section');
   if (equipmentSection) equipmentSection.hidden=template.type==='vehicle';
   const crewSection=document.querySelector('#quick-entity-vehicle-crew-section');

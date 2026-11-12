@@ -19,7 +19,7 @@ export function armorDefaults(catalogId) {
 }
 export function assemblePersonnel({entity, armorCatalogId='none', armorOverrides={}, weaponCatalogId='none',
   attachmentIds=[], ammunitionId=null, ammunitionRemaining=null, weaponOverrides={},
-  suitId=null, weaponId=null, occupantSuitRegistry, weaponRegistry}={}) {
+  suitId=null, weaponId=null, carriedWeapons=[], occupantSuitRegistry, weaponRegistry}={}) {
   if (!validId(entity?.id) || entity.type === 'vehicle' || !entity.health) throw new TypeError('Personnel Quick Entity required');
   const oldSuit = createOccupantSuitRegistry(occupantSuitRegistry);
   const oldWeapons = createWeaponRegistry(weaponRegistry);
@@ -44,10 +44,17 @@ export function assemblePersonnel({entity, armorCatalogId='none', armorOverrides
     nextWeapons=addWeapon(nextWeapons,{id:weaponId,catalogId:weaponCatalogId,ownerId:entity.id,
       attachmentIds,ammunitionId,ammunitionRemaining,overrides:weaponOverrides});
   }
+  if (!Array.isArray(carriedWeapons)) throw new TypeError('Carried weapons must be an array');
+  for (const carried of carriedWeapons) {
+    if (!validId(carried?.id)) throw new RangeError('Carried weapon requires unique ID');
+    nextWeapons=addWeapon(nextWeapons,{id:carried.id,catalogId:carried.catalogId,ownerId:entity.id,
+      attachmentIds:carried.attachmentIds ?? [],ammunitionId:carried.ammunitionId ?? null,
+      ammunitionRemaining:carried.ammunitionRemaining ?? null,overrides:carried.overrides ?? {}});
+  }
   nextSuit.occupants.push({id:entity.id,health:copy(entity.health),
     woundsTaken:Math.max(0,entity.health.maximumWounds-entity.health.woundsRemaining),
     equippedSuitId,appliedVehiclePersonnelResolutionIds:[]});
   nextSuit=createOccupantSuitRegistry(nextSuit);
-  return {entity:copy({...entity,equippedSuitId,equippedWeaponId:hasWeapon?weaponId:null}),
+  return {entity:copy({...entity,equippedSuitId,equippedWeaponId:hasWeapon?weaponId:null,carriedWeaponIds:carriedWeapons.map(w=>w.id)}),
     occupantSuitRegistry:nextSuit,weaponRegistry:nextWeapons};
 }
