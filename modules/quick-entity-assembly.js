@@ -29,9 +29,9 @@ export function assemblePersonnel({entity, armorCatalogId='none', armorOverrides
   const equippedSuitId=defaults ? suitId : null;
   if (defaults && (!validId(suitId) || nextSuit.suits.some(s=>s.id===suitId))) throw new RangeError('Unique suit ID required');
   if (defaults) {
-    const av=armorOverrides.av ?? entity.defense.av ?? defaults.av;
-    const dr=armorOverrides.dr ?? entity.defense.dr ?? defaults.dr;
-    const armored=armorOverrides.armored ?? entity.defense.armored ?? defaults.armored;
+    const av=armorOverrides.av ?? defaults.av;
+    const dr=armorOverrides.dr ?? defaults.dr;
+    const armored=armorOverrides.armored ?? defaults.armored;
     const suit=createSuitInstance({id:suitId,label:`${entity.label} — ${defaults.label}`,templateId:armorCatalogId,
       armor:{av,dr,armored}});
     if (defaults.traumaDampening) suit.traumaDampening={id:defaults.traumaDampening.id,

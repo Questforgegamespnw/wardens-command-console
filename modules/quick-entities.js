@@ -318,6 +318,9 @@ export function updateQuickEntity(
   };
 }
 
+// A duplicate is an unregistered Quick Entity snapshot. It intentionally does
+// not copy equippedSuitId/equippedWeaponId or registry identities: those must be
+// created by an explicit assembly operation, never shared by copying an actor.
 export function duplicateQuickEntity(
   entity,
   overrides = {},

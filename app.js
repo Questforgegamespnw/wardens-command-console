@@ -5368,6 +5368,7 @@ function handleQuickEntitySubmit(event) {
       const countText=document.querySelector('#quick-entity-ammo-count')?.value ?? '';
       const attachmentIds=Array.from(document.querySelector('#quick-entity-attachments')?.selectedOptions ?? [],o=>o.value);
       assembled=assemblePersonnel({entity:result,armorCatalogId,weaponCatalogId,
+        armorOverrides:formInput.defense,
         suitId:armorCatalogId==='none'?null:createLocalId('suit'),
         weaponId:weaponCatalogId==='none'?null:createLocalId('weapon'),
         attachmentIds,ammunitionId,ammunitionRemaining:countText===''?null:Number(countText),
