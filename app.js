@@ -1,3 +1,11 @@
+import { assembleVehicle, createVehicleRegistry } from "./modules/vehicle-instance-registry.js";
+import { LEGACY_ARMOR_CATALOG_IDS } from "./modules/equipment-catalog-reconciliation.js";
+import { assemblePersonnel, armorDefaults } from "./modules/quick-entity-assembly.js";
+import { createWeaponRegistry } from "./modules/weapon-instance-registry.js";
+import { getPersonalEquipment, getCompatibleAmmunition, listWeaponAttachments, canInstallAttachment } from "./data/personal-equipment.js";
+import { hasArmorCapability } from "./modules/suit-capabilities.js";
+import { registerQuickEntity, registerQuickEntitySuit, registerEnvironmentalSuit, resolveQuickEntitySuitAttack, commitQuickEntityAttackToSession, changeQuickEntityEquipment } from "./modules/console-equipment-workflow.js";
+import { calculateEffectiveAv } from "./data/personal-armor.js";
 import { createOccupantSuitRegistry } from "./modules/occupant-suit-registry.js";
 import { resolveDirectVehicleSubsystem } from "./modules/direct-vehicle-subsystem.js";
 import { planCrossScaleAttack } from "./modules/cross-scale-router.js";
@@ -221,6 +229,10 @@ const appState = {
 
   quickEntities: [],
   occupantSuitRegistry: { occupants: [], suits: [] },
+  weaponRegistry: { weapons: [] },
+  vehicleRegistry: { vehicles: [], mounts: [], stations: [] },
+  vehiclePersonnelPendingActions: [],
+  vehiclePersonnelPreview: null,
   selectedEntityId: null,
   editingEntityId: null,
   quickEntityErrors: [],
@@ -369,8 +381,9 @@ const tools = {
         groups: getActiveEntityGroups(),
         selectedEntityId: appState.selectedEntityId,
         editingEntity: getEditingEntity(),
-        errors: appState.quickEntityErrors
-      })
+        errors: appState.quickEntityErrors,
+        registries: { occupantSuitRegistry: appState.occupantSuitRegistry, weaponRegistry: appState.weaponRegistry, vehicleRegistry: appState.vehicleRegistry }
+      }) + renderQuickEntityEquipmentPanel()
   },
 
   ship_entities: {
@@ -502,6 +515,8 @@ function bindShellEvents() {
     "click",
     handleQuickEntityAction
   );
+  document.addEventListener("click", handleEquipmentAction);
+  document.addEventListener("change", handleEquipmentChange);
 
   document.addEventListener(
     "click",
@@ -4948,6 +4963,90 @@ function formatAppIdentifier(value) {
 /* Quick Entities                                                             */
 /* -------------------------------------------------------------------------- */
 
+function renderQuickEntityEquipmentPanel() {
+  const e = appState.quickEntities.find(e => e.id === appState.selectedEntityId);
+  if (!e) return '';
+  const registry = appState.occupantSuitRegistry;
+  const person = registry.occupants.find(o => o.id === e.id);
+  const suit = registry.suits.find(s => s.id === person?.equippedSuitId);
+  const esc = escapeHtml;
+  const button = (action, label) => `<button type="button" class="button" data-equipment-action="${action}">${label}</button>`;
+  const options = (items, selected) => items.map(([id,label]) => `<option value="${esc(id)}" ${id === selected ? 'selected' : ''}>${esc(label)}</option>`).join('');
+  const available = registry.suits.filter(s => !registry.occupants.some(o => o.equippedSuitId === s.id));
+  const recipients = registry.occupants.filter(o => o.id !== e.id && !o.equippedSuitId);
+  const weapons = getActiveDamageWeaponPresets().filter(w => w.category === 'vehicle_weapons' && w.personnelImpact?.exposures);
+  const weapon = weapons[0];
+  const preview = appState.vehiclePersonnelPreview;
+  return `<section class="panel" data-equipment-panel><header class="panel__header"><div><p class="eyebrow">Phase 2F</p><h2>Equipment &amp; Powered Suit Combat</h2><p class="panel__description">Selected: ${esc(e.label)} · ${esc(e.id)}. Occupant and suit are independent records.</p></div></header>
+  <div class="panel__body"><div class="form-grid"><section class="form-field"><h3>Equipment</h3>
+  ${person ? `<p>Occupant: <strong>${esc(person.id)}</strong> · Health ${esc(String(person.health?.currentHealth ?? '?'))} · Wounds ${esc(String(person.woundsTaken ?? 0))}</p>` : `<p>Not registered as an occupant.</p>${button('register-occupant','Register occupant')}`}
+  ${person && !suit ? `<p>No suit equipped.</p><label>Available suit <select id="equipment-suit">${options(available.map(s=>[s.id, s.label || s.id]))}</select></label>${button('equip','Equip selected suit')}` : ''}
+  ${person && suit ? `<p>Suit: <strong>${esc(suit.label || suit.id)}</strong> (${esc(suit.id)})</p><p>${hasArmorCapability(suit) ? `Condition: ${esc(suit.armorState)} · Effective AV ${calculateEffectiveAv(suit.originalAv,suit.armorState)} · DR ${esc(String(suit.dr))} · Dampening ${esc(String(suit.traumaDampening?.chargesRemaining ?? 0))}` : `Environmental suit · Seals: ${esc(suit.capabilities?.environment?.seals?.status ?? "not configured")} · Air: ${esc(String(suit.capabilities?.environment?.air?.remaining ?? "not configured"))}` }</p>${button('doff','Doff suit')}
+  ${recipients.length ? `<label>Transfer to <select id="equipment-recipient">${options(recipients.map(o=>[o.id,o.id]))}</select></label>${button('transfer','Transfer suit')}` : ''}` : ''}
+  <p><small>Register a separate suit from this entity's armor template. This does not change the person's Health.</small></p>${button('register-suit','Register armor from template')} ${button('register-eva','Create EVA suit (unconfigured)')}
+  <p id="equipment-feedback" role="status"></p></section>
+  <section class="form-field"><h3>Vehicle → Powered Suit</h3>
+  ${person && suit && hasArmorCapability(suit) && weapon ? `<label>Weapon <select id="equipment-weapon">${options(weapons.map(w=>[w.id,w.label]))}</select></label>
+  <label>Profile <select id="equipment-profile">${options(weapon.profiles.map(p=>[p.id,p.label]))}</select></label>
+  <label>Exposure <select id="equipment-exposure">${options(Object.entries(weapon.personnelImpact.exposures).map(([id])=>[id,id]))}</select></label>
+  ${button('resolve','Resolve (preview only)')}
+  ${preview && preview.commit.occupantId === person.id ? `<p><strong>Uncommitted resolution ${esc(preview.commit.resolutionId)}</strong></p><p>Suit: ${esc(preview.sequence.suitStateBefore)} → ${esc(preview.sequence.suitStateAfter)} · TAC events ${preview.sequence.suitTacEvents.length}</p><p>Wounds: ${preview.wounds.woundsTakenBefore} → ${preview.wounds.woundsTakenAfter} · Dampening: ${preview.wounds.dampeningUsesBefore} → ${preview.wounds.dampeningUsesAfter}</p><p>Health after: ${esc(String(preview.wounds.occupantHealthAfter ?? 'unchanged'))} · Pending consequences: ${preview.commit.pendingActions.length}</p>${button('commit','Commit reviewed resolution')}${button('discard','Discard preview')}` : ''}` : '<p>Register an occupant and equip a suit to enable this workflow.</p>'}
+  </section></div></div></section>`;
+}
+function refreshEquipmentPanel() {
+  if (appState.activeTool === 'quick_entities') renderActiveTool();
+  renderQuickEntitySessionBoard();
+  persistSessionState();
+}
+function handleEquipmentChange(event) {
+  if (event.target?.id !== 'equipment-weapon') return;
+  const weapon = getDamageWeaponPreset(event.target.value);
+  const profile = document.querySelector('#equipment-profile');
+  const exposure = document.querySelector('#equipment-exposure');
+  if (!weapon || !profile || !exposure) return;
+  profile.innerHTML = weapon.profiles.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`).join('');
+  exposure.innerHTML = Object.keys(weapon.personnelImpact?.exposures ?? {}).map(id=>`<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('');
+}
+function handleEquipmentAction(event) {
+  const control = event.target.closest('[data-equipment-action]');
+  if (!control) return;
+  const action = control.dataset.equipmentAction;
+  const e = appState.quickEntities.find(e=>e.id === appState.selectedEntityId);
+  if (!e) return;
+  try {
+    const registry = appState.occupantSuitRegistry;
+    let next = registry;
+    if (action === 'register-occupant') next = registerQuickEntity({registry,quickEntity:e});
+    else if (action === 'register-suit') next = registerQuickEntitySuit({registry,suitId:createLocalId('suit'),quickEntity:e});
+    else if (action === 'register-eva') next = registerEnvironmentalSuit({registry,suitId:createLocalId('suit'),label:`${e.label} EVA suit`});
+    else if (action === 'equip') next = changeQuickEntityEquipment({registry,action:'equip',occupantId:e.id,suitId:document.querySelector('#equipment-suit')?.value});
+    else if (action === 'doff') next = changeQuickEntityEquipment({registry,action:'doff',occupantId:e.id});
+    else if (action === 'transfer') next = changeQuickEntityEquipment({registry,action:'transfer',occupantId:e.id,toOccupantId:document.querySelector('#equipment-recipient')?.value});
+    else if (action === 'resolve') {
+      appState.vehiclePersonnelPreview = resolveQuickEntitySuitAttack({registry,occupantId:e.id,
+        weapon:getDamageWeaponPreset(document.querySelector('#equipment-weapon')?.value),
+        profileId:document.querySelector('#equipment-profile')?.value,
+        exposureId:document.querySelector('#equipment-exposure')?.value,
+        resolutionId:createLocalId('vp')});
+    } else if (action === 'commit') {
+      if (!appState.vehiclePersonnelPreview || appState.vehiclePersonnelPreview.commit.occupantId !== e.id) throw new RangeError('No matching preview');
+      const result = commitQuickEntityAttackToSession({registry,quickEntities:appState.quickEntities,
+        pendingActions:appState.vehiclePersonnelPendingActions,commit:appState.vehiclePersonnelPreview.commit});
+      appState.quickEntities = result.quickEntities;
+      appState.vehiclePersonnelPendingActions = result.pendingActions;
+      next = result.registry;
+      appState.vehiclePersonnelPreview = null;
+    } else if (action === 'discard') appState.vehiclePersonnelPreview = null;
+    else return;
+    appState.occupantSuitRegistry = next;
+    if (['equip','doff','transfer'].includes(action)) appState.vehiclePersonnelPreview = null;
+    refreshEquipmentPanel();
+  } catch(error) {
+    const status = document.querySelector('#equipment-feedback');
+    if (status) status.textContent = error.message;
+  }
+}
+
 function bindQuickEntityToolEvents() {
   const form = document.querySelector(
     "#quick-entity-form"
@@ -4975,8 +5074,30 @@ function bindQuickEntityToolEvents() {
     "change",
     handleQuickEntityTemplateChange
   );
+  document.querySelector('#quick-entity-armor')?.addEventListener('change', handleQuickEntityArmorChange);
+  document.querySelector('#quick-entity-weapon')?.addEventListener('change', refreshQuickEntityWeaponOptions);
+
 }
 
+function handleQuickEntityArmorChange(event) {
+  const defaults=armorDefaults(event.target.value);
+  const av=document.querySelector('#quick-entity-av'), dr=document.querySelector('#quick-entity-dr');
+  const armored=document.querySelector('#quick-entity-armored');
+  if (av) av.value=defaults?.av ?? 0;
+  if (dr) dr.value=defaults?.dr ?? 0;
+  if (armored) armored.checked=defaults?.armored ?? false;
+}
+function refreshQuickEntityWeaponOptions() {
+  const weaponId=document.querySelector('#quick-entity-weapon')?.value;
+  const ammo=document.querySelector('#quick-entity-ammo');
+  const attachments=document.querySelector('#quick-entity-attachments');
+  if (!ammo || !attachments) return;
+  const weapon=getPersonalEquipment(weaponId);
+  const ammoChoices=weapon ? getCompatibleAmmunition(weapon) : [];
+  ammo.replaceChildren(new Option('Default / Unspecified',''),...ammoChoices.map(a=>new Option(a.label,a.id)));
+  const compatible=weapon ? listWeaponAttachments().filter(a=>canInstallAttachment(weapon,a.id,[]).allowed) : [];
+  attachments.replaceChildren(...compatible.map(a=>new Option(a.label,a.id)));
+}
 function handleQuickEntityAction(event) {
   const control = event.target.closest(
     "[data-quick-entity-action]"
@@ -5237,6 +5358,48 @@ function handleQuickEntitySubmit(event) {
     return;
   }
 
+  // New personnel are assembled as one validated, independent state transition.
+  let assembled=null;
+  if (!formInput.id && result.type !== 'vehicle') {
+    try {
+      const armorCatalogId=document.querySelector('#quick-entity-armor')?.value || 'none';
+      const weaponCatalogId=document.querySelector('#quick-entity-weapon')?.value || 'none';
+      const ammunitionId=document.querySelector('#quick-entity-ammo')?.value || null;
+      const countText=document.querySelector('#quick-entity-ammo-count')?.value ?? '';
+      const attachmentIds=Array.from(document.querySelector('#quick-entity-attachments')?.selectedOptions ?? [],o=>o.value);
+      assembled=assemblePersonnel({entity:result,armorCatalogId,weaponCatalogId,
+        suitId:armorCatalogId==='none'?null:createLocalId('suit'),
+        weaponId:weaponCatalogId==='none'?null:createLocalId('weapon'),
+        attachmentIds,ammunitionId,ammunitionRemaining:countText===''?null:Number(countText),
+        occupantSuitRegistry:appState.occupantSuitRegistry,weaponRegistry:appState.weaponRegistry});
+      result=assembled.entity;
+    } catch(error) {
+      appState.quickEntityErrors=[{field:'equipment',code:'invalid_equipment',message:error.message}];
+      renderActiveTool();
+      return;
+    }
+  }
+  let assembledVehicle=null;
+  if (!formInput.id && result.type === 'vehicle') {
+    try {
+      const chassis = result.templateId ? getEntityTemplate(result.templateId) : null;
+      const loadout = chassis?.type === 'vehicle' ? chassis.profile?.loadout ?? [] : [];
+      const crewStations = (document.querySelector('#quick-entity-crew-stations')?.value ?? '').split(',').map(s=>s.trim()).filter(Boolean);
+      assembledVehicle=assembleVehicle({entity:result, chassisId:chassis?.type === 'vehicle' ? chassis.id : '',
+        registry:appState.vehicleRegistry,vehicleId:createLocalId('vehicle'),
+        mountIds:loadout.map(()=>createLocalId('mount')), crewStations, stationIds:crewStations.map(()=>createLocalId('station'))});
+      result=assembledVehicle.entity;
+    } catch(error) {
+      appState.quickEntityErrors=[{field:'vehicle',code:'invalid_vehicle_assembly',message:error.message}];
+      renderActiveTool();return;
+    }
+  }
+  if (assembledVehicle) appState.vehicleRegistry=assembledVehicle.vehicleRegistry;
+  if (assembled) {
+    appState.occupantSuitRegistry=assembled.occupantSuitRegistry;
+    appState.weaponRegistry=assembled.weaponRegistry;
+  }
+
   if (formInput.id) {
     appState.quickEntities =
       replaceQuickEntity(
@@ -5298,6 +5461,18 @@ function handleQuickEntityTemplateChange(event) {
   populateQuickEntityForm(preview, {
     preserveId: true
   });
+  const armorSelect=document.querySelector('#quick-entity-armor');
+  if (armorSelect) {
+    const catalogId=LEGACY_ARMOR_CATALOG_IDS[template.armorPackageId] ?? 'none';
+    armorSelect.value=catalogId;
+    // For templates without a separately tracked suit, retain manual values;
+    // selecting a catalog suit explicitly always uses the catalog defaults.
+    if (catalogId !== 'none') handleQuickEntityArmorChange({target:armorSelect});
+  }
+  const equipmentSection=armorSelect?.closest('section');
+  if (equipmentSection) equipmentSection.hidden=template.type==='vehicle';
+  const crewSection=document.querySelector('#quick-entity-vehicle-crew-section');
+  if (crewSection) crewSection.hidden=template.type!=='vehicle';
 }function collectQuickEntityFormInput() {
   return {
     id:
@@ -5517,7 +5692,8 @@ function renderQuickEntitySessionBoard() {
   elements.quickEntitySummary.innerHTML =
     renderQuickEntityBoard(
       appState.quickEntities,
-      appState.selectedEntityId
+      appState.selectedEntityId,
+      { occupantSuitRegistry: appState.occupantSuitRegistry, weaponRegistry: appState.weaponRegistry, vehicleRegistry: appState.vehicleRegistry }
     );
 }
 
@@ -5717,6 +5893,9 @@ function persistSessionState() {
       activeResultId: appState.activeResultId,
       quickEntities: appState.quickEntities,
       occupantSuitRegistry: appState.occupantSuitRegistry,
+      weaponRegistry: appState.weaponRegistry,
+      vehicleRegistry: appState.vehicleRegistry,
+      vehiclePersonnelPendingActions: appState.vehiclePersonnelPendingActions,
       selectedEntityId: appState.selectedEntityId,
       hazardTrackers: appState.hazardTrackers,
       selectedHazardTrackerId:
@@ -5784,6 +5963,20 @@ function restoreSessionState() {
     if (Array.isArray(stored.quickEntities)) {
       appState.quickEntities =
         stored.quickEntities;
+    }
+
+    if (Array.isArray(stored.vehiclePersonnelPendingActions)) {
+      appState.vehiclePersonnelPendingActions = stored.vehiclePersonnelPendingActions;
+    }
+
+    if (stored.vehicleRegistry) {
+      try { appState.vehicleRegistry=createVehicleRegistry(stored.vehicleRegistry); }
+      catch(error) { console.warn("Ignoring invalid vehicle registry",error); }
+    }
+
+    if (stored.weaponRegistry) {
+      try { appState.weaponRegistry=createWeaponRegistry(stored.weaponRegistry); }
+      catch(error) { console.warn('Ignoring invalid weapon registry',error); }
     }
 
     if (stored.occupantSuitRegistry) {

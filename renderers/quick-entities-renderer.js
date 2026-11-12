@@ -1,3 +1,6 @@
+import { projectQuickEntityEquipment } from "../modules/quick-entity-equipment-view.js";
+import { listQuickEntityArmorChoices } from "../modules/equipment-catalog-reconciliation.js";
+import { listWeapons } from "../data/personal-equipment.js";
 import {
   escapeHtml,
   formatNumber
@@ -21,7 +24,8 @@ export function renderQuickEntitiesTool({
   groups = [],
   selectedEntityId = null,
   editingEntity = null,
-  errors = []
+  errors = [],
+  registries = {}
 } = {}) {
   return `
     <section class="panel">
@@ -65,7 +69,8 @@ export function renderQuickEntitiesTool({
                       .map((entity) =>
                         renderQuickEntityListItem(
                           entity,
-                          entity.id === selectedEntityId
+                          entity.id === selectedEntityId,
+                          registries
                         )
                       )
                       .join("")
@@ -99,7 +104,8 @@ export function renderQuickEntitiesTool({
  */
 export function renderQuickEntityBoard(
   entities = [],
-  selectedEntityId = null
+  selectedEntityId = null,
+  registries = {}
 ) {
   if (entities.length === 0) {
     return `
@@ -115,7 +121,8 @@ export function renderQuickEntityBoard(
         .map((entity) =>
           renderQuickEntityBoardCard(
             entity,
-            entity.id === selectedEntityId
+            entity.id === selectedEntityId,
+            registries
           )
         )
         .join("")}
@@ -125,7 +132,8 @@ export function renderQuickEntityBoard(
 
 export function renderQuickEntityListItem(
   entity,
-  isSelected = false
+  isSelected = false,
+  registries = {}
 ) {
   return `
     <article
@@ -169,6 +177,7 @@ export function renderQuickEntityListItem(
         </span>
 
         ${renderVehicleCompactSummary(entity)}
+        ${renderLinkedEquipmentSummary(entity, registries)}
       </button>
 
       <div class="quick-entity-item__actions">
@@ -237,6 +246,25 @@ export function renderQuickEntityEditor({
         value="${escapeHtml(entity?.id ?? "")}"
       >
 
+      ${!isEditing ? `<section class="form-section">
+        <div class="form-section__heading"><h3>Personnel Equipment</h3></div>
+        <p class="form-help">Choose a personnel template above, then a suit and weapon. Defaults populate the editable values below. Create Entity registers and equips everything in one action.</p>
+        <div class="form-grid">
+          <div class="form-field"><label class="form-label" for="quick-entity-armor">Armor / Suit</label>
+            <select class="select" id="quick-entity-armor">${listQuickEntityArmorChoices().map(a=>`<option value="${escapeHtml(a.id)}">${escapeHtml(a.label)}</option>`).join('')}</select></div>
+          <div class="form-field"><label class="form-label" for="quick-entity-weapon">Equipped Weapon</label>
+            <select class="select" id="quick-entity-weapon"><option value="none">No weapon</option>${listWeapons().map(w=>`<option value="${escapeHtml(w.id)}">${escapeHtml(w.label)}</option>`).join('')}</select></div>
+          <div class="form-field"><label class="form-label" for="quick-entity-ammo">Ammunition Type</label><select class="select" id="quick-entity-ammo"><option value="">Default / Unspecified</option></select></div>
+          <div class="form-field"><label class="form-label" for="quick-entity-ammo-count">Ammunition Remaining (optional)</label><input class="input" id="quick-entity-ammo-count" type="number" min="0" placeholder="Untracked"></div>
+          <div class="form-field form-field--full"><label class="form-label" for="quick-entity-attachments">Attachments (optional)</label><select class="select" id="quick-entity-attachments" multiple size="4"></select><p class="form-help">Use Ctrl / Cmd to select multiple compatible attachments.</p></div>
+        </div>
+      </section>` : ''}
+      ${!isEditing ? `<section class="form-section" id="quick-entity-vehicle-crew-section" hidden>
+        <div class="form-section__heading"><h3>Vehicle Crew Stations (optional)</h3></div>
+        <label class="form-label" for="quick-entity-crew-stations">Station labels (comma-separated)</label>
+        <input class="input" id="quick-entity-crew-stations" placeholder="Driver, Gunner, Commander">
+        <p class="form-help">Creates empty, individually tracked stations. Does not invent crew members or their statistics.</p>
+      </section>` : ''}
       <section class="form-section">
         <div class="form-grid">
           <div class="form-field form-field--full">
@@ -552,7 +580,8 @@ export function renderQuickEntityEditor({
 
 export function renderQuickEntityBoardCard(
   entity,
-  isSelected = false
+  isSelected = false,
+  registries = {}
 ) {
   const tacCount =
     entity.conditions?.activeTac?.length ?? 0;
@@ -607,6 +636,7 @@ export function renderQuickEntityBoardCard(
         }
 
         ${renderVehicleCompactSummary(entity)}
+        ${renderLinkedEquipmentSummary(entity, registries)}
       </button>
 
       <div class="quick-entity-board-card__actions">
@@ -631,6 +661,23 @@ export function renderQuickEntityBoardCard(
   `;
 }
 
+
+/** Compact state summary reads actual instance registries, not stale template values. */
+export function renderLinkedEquipmentSummary(entity, registries = {}) {
+  const equipment = projectQuickEntityEquipment(entity, registries);
+  const lines = [];
+  if (equipment.suit) lines.push(`Suit: ${equipment.suit.label} (${equipment.suit.condition ?? 'equipped'})`);
+  if (equipment.weapon) {
+    const ammo = equipment.weapon.ammunitionRemaining === null ? 'untracked' : equipment.weapon.ammunitionRemaining;
+    lines.push(`Weapon: ${equipment.weapon.label} (${equipment.weapon.condition}; ammo ${ammo})`);
+  }
+  if (equipment.vehicle) {
+    lines.push(`Mounts: ${equipment.mounts.length} · Crew stations: ${equipment.stations.length}`);
+    if (equipment.stations.length) lines.push(`Crew assigned: ${equipment.stations.filter(s=>s.occupantId).length}/${equipment.stations.length}`);
+  }
+  if (!lines.length) return '';
+  return `<span class="quick-entity-item__summary">${escapeHtml(lines.join(' · '))}</span>`;
+}
 
 function renderVehicleCompactSummary(entity) {
   if (entity?.type !== "vehicle") {
