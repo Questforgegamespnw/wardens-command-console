@@ -1,3 +1,5 @@
+> **Architecture documentation update (Phase 2H-6, 2026-11-11):** The current entity/equipment model, session-validation scope and Foundry integration boundaries are documented in [`DEV/CURRENT_ARCHITECTURE_2H.md`](DEV/CURRENT_ARCHITECTURE_2H.md). See [`DEV/PHASE_2H_STABILIZATION_BACKLOG.md`](DEV/PHASE_2H_STABILIZATION_BACKLOG.md) for open verification items. Some older feature-status lists below reflect an earlier alpha milestone.
+
 # Warden Resolution Console
 
 A lightweight, standalone browser console for resolving mechanical uncertainty during live **Mothership** play.

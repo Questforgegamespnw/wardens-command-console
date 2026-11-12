@@ -1,3 +1,7 @@
+> **Current 2H documentation (2026-11-11):** This document preserves the earlier alpha-era design and may describe features as deferred that are now implemented. For the verified current architecture, see [`CURRENT_ARCHITECTURE_2H.md`](CURRENT_ARCHITECTURE_2H.md); for remaining verification, see [`PHASE_2H_STABILIZATION_BACKLOG.md`](PHASE_2H_STABILIZATION_BACKLOG.md). Do not use older examples here as authoritative live registry schemas.
+
+---
+
 # Warden Resolution Console — Architecture
 
 **Document:** `DEV/ARCHITECTURE.md`  

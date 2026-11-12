@@ -1,3 +1,11 @@
+## 2026-11-11 — Phase 2H-6 documentation reconciliation
+
+- Added current architecture and stabilization backlog under `DEV/`.
+- Marked earlier alpha architecture, data-model, roadmap and test checklist as historical where superseded.
+- Recorded verified 2H-5 baseline (155 tests) and bounded the 2H-2 validator to Quick Entity/equipment graph integrity.
+- Clarified that pending consequence acknowledgement does not execute TAC effects, and Foundry v14 support remains a future integration project.
+- Documentation-only update; no production logic or schema changes.
+
 # Changelog
 
 ## Unreleased — Initial Alpha Candidate
