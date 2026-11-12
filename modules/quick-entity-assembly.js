@@ -1,7 +1,6 @@
 /** Phase 2G-2B: pure, atomic personnel assembly. Existing records are not modified. */
 import { getPersonalEquipment } from '../data/personal-equipment.js';
-import { ENTITY_ARMOR_PACKAGES } from '../data/entity-templates/armor-packages.js';
-import { LEGACY_ARMOR_CATALOG_IDS } from './equipment-catalog-reconciliation.js';
+import { getArmorMechanicsSupplement } from '../data/armor-mechanics.js';
 import { createSuitInstance } from './suit-capabilities.js';
 import { createOccupantSuitRegistry } from './occupant-suit-registry.js';
 import { addWeapon, createWeaponRegistry } from './weapon-instance-registry.js';
@@ -11,11 +10,12 @@ export function armorDefaults(catalogId) {
   if (!catalogId || catalogId === 'none') return null;
   const catalog = getPersonalEquipment(catalogId);
   if (catalog?.category !== 'armor') throw new RangeError('Unknown armor catalog ID');
-  const legacyId = Object.keys(LEGACY_ARMOR_CATALOG_IDS).find(id => LEGACY_ARMOR_CATALOG_IDS[id] === catalogId);
-  const legacy = legacyId ? ENTITY_ARMOR_PACKAGES[legacyId] : null;
-  return {catalogId, label:catalog.label, av:catalog.profile?.av ?? legacy?.defense?.av ?? 0,
-    dr:legacy?.defense?.dr ?? 0, armored:legacy?.defense?.armored ?? false,
-    traumaDampening:legacy?.armorSystems?.traumaDampening ?? null};
+  const supplement = getArmorMechanicsSupplement(catalogId);
+  return {catalogId, label:catalog.label, av:catalog.profile?.av ?? 0,
+    dr:supplement?.dr ?? 0, armored:supplement?.armored ?? false,
+    traumaDampening:supplement?.traumaDampening
+      ? {id:supplement.traumaDampening.id, maximumUses:supplement.traumaDampening.charges,
+        usesRemaining:supplement.traumaDampening.charges} : null};
 }
 export function assemblePersonnel({entity, armorCatalogId='none', armorOverrides={}, weaponCatalogId='none',
   attachmentIds=[], ammunitionId=null, ammunitionRemaining=null, weaponOverrides={},

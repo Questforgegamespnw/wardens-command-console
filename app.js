@@ -1,4 +1,5 @@
-import { assembleQuickEntityBatch } from "./modules/quick-entity-batch-assembly.js";
+import { validateSessionSnapshot } from "./modules/session-integrity.js";
+import { addQuickEntitiesToState } from "./modules/quick-entity-state-operations.js";
 import { resolveInfantryLoadout } from "./modules/infantry-loadout-catalog.js";
 import { assembleVehicle, createVehicleRegistry } from "./modules/vehicle-instance-registry.js";
 import { LEGACY_ARMOR_CATALOG_IDS } from "./modules/equipment-catalog-reconciliation.js";
@@ -5173,30 +5174,14 @@ function createQuickEntityGroup() {
     return;
   }
 
-  let batch;
+  let updated;
   try {
-    batch=assembleQuickEntityBatch({entities:result,
-      occupantSuitRegistry:appState.occupantSuitRegistry,weaponRegistry:appState.weaponRegistry,
-      vehicleRegistry:appState.vehicleRegistry,idFactory:createLocalId});
-  } catch(error) {
+    updated = addQuickEntitiesToState({state:appState,entities:result,idFactory:createLocalId});
+  } catch (error) {
     appState.quickEntityErrors=[{field:'group',code:'assembly_failed',message:error.message}];
     renderActiveTool();return;
   }
-  appState.occupantSuitRegistry=batch.occupantSuitRegistry;
-  appState.weaponRegistry=batch.weaponRegistry;
-  appState.vehicleRegistry=batch.vehicleRegistry;
-  appState.quickEntities = [
-    ...appState.quickEntities,
-    ...batch.entities
-  ];
-
-  appState.selectedEntityId =
-    result[0]?.id ?? null;
-
-  appState.editingEntityId =
-    result[0]?.id ?? null;
-
-  appState.quickEntityErrors = [];
+  Object.assign(appState, updated);
 
   renderQuickEntityViews();
   persistSessionState();
@@ -5255,30 +5240,15 @@ function duplicateSelectedQuickEntity(entityId) {
     return;
   }
 
-  let batch;
+  let updated;
   try {
-    batch=assembleQuickEntityBatch({entities:[duplicate],sourceEntities:[source],
-      occupantSuitRegistry:appState.occupantSuitRegistry,weaponRegistry:appState.weaponRegistry,
-      vehicleRegistry:appState.vehicleRegistry,idFactory:createLocalId});
+    updated = addQuickEntitiesToState({state:appState,entities:[duplicate],
+      sourceEntities:[source],idFactory:createLocalId});
   } catch(error) {
     appState.quickEntityErrors=[{field:'duplicate',code:'assembly_failed',message:error.message}];
     appState.activeTool='quick_entities';renderToolNavigation();renderActiveTool();return;
   }
-  appState.occupantSuitRegistry=batch.occupantSuitRegistry;
-  appState.weaponRegistry=batch.weaponRegistry;
-  appState.vehicleRegistry=batch.vehicleRegistry;
-  appState.quickEntities = [
-    ...appState.quickEntities,
-    batch.entities[0]
-  ];
-
-  appState.selectedEntityId =
-    duplicate.id;
-
-  appState.editingEntityId =
-    duplicate.id;
-
-  appState.quickEntityErrors = [];
+  Object.assign(appState, updated);
 
   renderQuickEntityViews();
   persistSessionState();
@@ -5970,7 +5940,7 @@ function restoreSessionState() {
       return;
     }
 
-    const stored = JSON.parse(raw);
+    const stored = validateSessionSnapshot(JSON.parse(raw));
 
     if (
       typeof stored.activeTool === "string" &&
@@ -6005,23 +5975,10 @@ function restoreSessionState() {
       appState.vehiclePersonnelPendingActions = stored.vehiclePersonnelPendingActions;
     }
 
-    if (stored.vehicleRegistry) {
-      try { appState.vehicleRegistry=createVehicleRegistry(stored.vehicleRegistry); }
-      catch(error) { console.warn("Ignoring invalid vehicle registry",error); }
-    }
-
-    if (stored.weaponRegistry) {
-      try { appState.weaponRegistry=createWeaponRegistry(stored.weaponRegistry); }
-      catch(error) { console.warn('Ignoring invalid weapon registry',error); }
-    }
-
-    if (stored.occupantSuitRegistry) {
-      try {
-        appState.occupantSuitRegistry = createOccupantSuitRegistry(stored.occupantSuitRegistry);
-      } catch (error) {
-        console.warn("Ignoring invalid occupant/suit registry", error);
-      }
-    }
+    // All registries and cross-record references were validated together above.
+    appState.vehicleRegistry = stored.vehicleRegistry;
+    appState.weaponRegistry = stored.weaponRegistry;
+    appState.occupantSuitRegistry = stored.occupantSuitRegistry;
 
     if (
       typeof stored.selectedEntityId === "string" ||
