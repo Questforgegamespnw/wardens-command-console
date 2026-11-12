@@ -1,3 +1,4 @@
+import { assembleQuickEntityBatch } from "./modules/quick-entity-batch-assembly.js";
 import { resolveInfantryLoadout } from "./modules/infantry-loadout-catalog.js";
 import { assembleVehicle, createVehicleRegistry } from "./modules/vehicle-instance-registry.js";
 import { LEGACY_ARMOR_CATALOG_IDS } from "./modules/equipment-catalog-reconciliation.js";
@@ -5172,9 +5173,21 @@ function createQuickEntityGroup() {
     return;
   }
 
+  let batch;
+  try {
+    batch=assembleQuickEntityBatch({entities:result,
+      occupantSuitRegistry:appState.occupantSuitRegistry,weaponRegistry:appState.weaponRegistry,
+      vehicleRegistry:appState.vehicleRegistry,idFactory:createLocalId});
+  } catch(error) {
+    appState.quickEntityErrors=[{field:'group',code:'assembly_failed',message:error.message}];
+    renderActiveTool();return;
+  }
+  appState.occupantSuitRegistry=batch.occupantSuitRegistry;
+  appState.weaponRegistry=batch.weaponRegistry;
+  appState.vehicleRegistry=batch.vehicleRegistry;
   appState.quickEntities = [
     ...appState.quickEntities,
-    ...result
+    ...batch.entities
   ];
 
   appState.selectedEntityId =
@@ -5242,9 +5255,21 @@ function duplicateSelectedQuickEntity(entityId) {
     return;
   }
 
+  let batch;
+  try {
+    batch=assembleQuickEntityBatch({entities:[duplicate],sourceEntities:[source],
+      occupantSuitRegistry:appState.occupantSuitRegistry,weaponRegistry:appState.weaponRegistry,
+      vehicleRegistry:appState.vehicleRegistry,idFactory:createLocalId});
+  } catch(error) {
+    appState.quickEntityErrors=[{field:'duplicate',code:'assembly_failed',message:error.message}];
+    appState.activeTool='quick_entities';renderToolNavigation();renderActiveTool();return;
+  }
+  appState.occupantSuitRegistry=batch.occupantSuitRegistry;
+  appState.weaponRegistry=batch.weaponRegistry;
+  appState.vehicleRegistry=batch.vehicleRegistry;
   appState.quickEntities = [
     ...appState.quickEntities,
-    duplicate
+    batch.entities[0]
   ];
 
   appState.selectedEntityId =
